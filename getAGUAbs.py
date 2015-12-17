@@ -7,7 +7,7 @@ from selenium.common.exceptions import NoSuchElementException
 from selenium.common.exceptions import NoAlertPresentException
 from tika import parser
 import unittest, time, re, os, sys, random, subprocess, shlex, signal
-import sunburnt, json, argparse, httplib2
+import sunburnt, json, argparse, httplib2, getopt
 
 
 '''
@@ -188,7 +188,7 @@ class AguChallenge(object):
         # thisArticleJSON.update(json.loads(pageMetaData))
         partMeta = {}
         i = json.loads(pageMetaData.encode('utf-8'))
-        partMeta = {"citation_author":i["citation_author"], "article_references":i["article_references"].encode('utf-8'),"citation_author_institution":["citation_author_institution"], \
+        partMeta = {"citation_author":i["citation_author"], "article_references":i["article_references"].encode('utf-8'),"citation_author_institution":i["citation_author_institution"], \
             "citation_doi":i["citation_doi"].encode('utf-8'), "citation_journal_title":i["citation_journal_title"].encode('utf-8'),\
             "citation_keywords":i["citation_keywords"],"citation_publisher":i["citation_publisher"].encode('utf-8'), "citation_online_date":i["citation_online_date"].encode('utf-8')}
         thisArticleJSON.update(partMeta)
@@ -217,6 +217,22 @@ def main(argv):
 
     journalsList = AguChallenge()
 
+    try:
+        opts, args = getopt.getopt(argv,"hs:")
+    except:
+        print 'python getAGUAbs.py -s <solr_installation>'
+        sys.exit(2)
+
+    if len(opts) != 1:
+        print 'python getAGUAbs.py -s <solr_installation>'
+    else:
+        for opt, arg in opts:
+            if opt in '-h':
+                print 'python getAGUAbs.py -s <solr_installation>'
+                sys.exit()
+            elif opt in '-s':
+                startSolrCmd = arg+' start'
+
     ps = subprocess.Popen("ps -ef | grep solr | grep -v grep", shell=True, stdout=subprocess.PIPE).communicate()[0]
     if ps:
         print 'Solr database is already running ... PID is %s' %(ps.split(' ')[1])
@@ -225,7 +241,7 @@ def main(argv):
         # # kill the process?
         # os.kill(int(ps.split(' ')[1]), signal.SIGKILL)
     else:
-        startSolrCmd = '/Users/whitehal/Documents/EOSDIS/research/solr-5.4.0/bin/solr start'
+        # startSolrCmd = '/Users/whitehal/Documents/EOSDIS/research/solr-5.4.0/bin/solr start'
         solrPID = subprocess.Popen(shlex.split(startSolrCmd), stdout=subprocess.PIPE, shell=False).communicate()[0]
         print 'Started Solr database ... PID is %s: ' %(solrPID.split('(')[1].split(')')[0].split('=')[1])
         journalsList.f.write('Started Solr database ... PID is %s\n' %(solrPID.split('(')[1].split(')')[0].split('=')[1]))
