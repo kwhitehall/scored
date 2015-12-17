@@ -10,6 +10,7 @@ This code has been tested on MacOS 10.10.4, FF 31.4.0, Solr 5.4.0
 * Firefox
 * Solr 5.x 
 * Python 2.7x
+
 Python libs:
 * selenium 2.48.0- for getting the stuff of the site
 * tika 1.9.3 - for parsing meta data
