@@ -20,7 +20,7 @@ Python libs:
 ## To use
 * Ensure Solr is installed. Set up a Solr core called 'scored', and ensure Solr is accessible at http://localhost:8983/solr/scored
 The schema to use is available in this repo as scored.xml. Note that
-* run the python script 'python getAGUAbs.py'
+* run the python script 'python getAGUAbs.py -s 'solrDBinstallation''
 * wait for a bit
 * check out the Sorl DB
 * check the log file - agu.log
