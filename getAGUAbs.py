@@ -241,7 +241,6 @@ def main(argv):
         # # kill the process?
         # os.kill(int(ps.split(' ')[1]), signal.SIGKILL)
     else:
-        # startSolrCmd = '/Users/whitehal/Documents/EOSDIS/research/solr-5.4.0/bin/solr start'
         solrPID = subprocess.Popen(shlex.split(startSolrCmd), stdout=subprocess.PIPE, shell=False).communicate()[0]
         print 'Started Solr database ... PID is %s: ' %(solrPID.split('(')[1].split(')')[0].split('=')[1])
         journalsList.f.write('Started Solr database ... PID is %s\n' %(solrPID.split('(')[1].split(')')[0].split('=')[1]))
