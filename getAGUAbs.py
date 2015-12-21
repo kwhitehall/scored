@@ -78,7 +78,8 @@ class AguChallenge(object):
             Purpose:: driver function for retrieving information from a given AGU journal
         '''
         next = True
-        
+        count_debug = 1
+        allIssuesURLs = []
         journal = webdriver.Firefox()
         journal.get(journalPageUrl)
         time.sleep(3)
@@ -88,10 +89,16 @@ class AguChallenge(object):
         time.sleep(3)
         
         allIssues = journal.find_elements_by_xpath("//ol[contains(@class,'js-issues-volume-list')]/li")
-        
         for issue in allIssues:
             try:
                 currVolumeURL = issue.find_element_by_tag_name('a').get_attribute('href')
+                allIssuesURLs.append(currVolumeURL)
+            except:
+                continue
+
+        
+        for currVolumeURL in allIssuesURLs:
+            try:
                 currVolume = webdriver.Firefox()  
                 currVolume.get(currVolumeURL)
                 currVolume.implicitly_wait(3)
@@ -99,14 +106,10 @@ class AguChallenge(object):
                 # time.sleep(random.randint(4,20)) 
                 #scrape on the page
                 self.get_info_from_agu_journal(currVolume)
-                currVolume.close()
+                currVolume.quit() #close()
             except:
-                print 'continue'
                 self.get_info_from_agu_journal(journal)
-
-            # #scrape on the page
-            # self.get_info_from_agu_journal(currVolume)
-            # currVolume.close()
+                continue
             
         journal.close()
         
@@ -115,26 +118,29 @@ class AguChallenge(object):
         '''
             Purpose:: Actually get the data off the page
         '''
-        
-        volArticles = currVolumeDriver.find_elements_by_xpath("//ol[contains(@class,'js-issues-list')]/li")
-        
-        for thisArticle in volArticles:
-            currIssue = webdriver.Firefox() 
-            currIssue.get(thisArticle.find_element_by_tag_name('a').get_attribute('href'))
-            currIssue.implicitly_wait(3)
-            allArticles = currIssue.find_elements_by_xpath("//div[contains(@id,'issue-toc__ajax')]/section/article/ul[contains(@class,'search__list-style2')]/li") #/article")
+        print 'get_info_from_agu_journal'
+        try:        
+            volArticles = currVolumeDriver.find_elements_by_xpath("//ol[contains(@class,'js-issues-list')]/li")
             
-            for currArticle in allArticles:
-                try:
-                    if '/full' in currArticle.find_element_by_tag_name('a').get_attribute('href') and\
-                            not '#references' in currArticle.find_element_by_tag_name('a').get_attribute('href'):
-                        self.f.write('parse full: %s\n'%(currArticle.find_element_by_tag_name('a').get_attribute('href')))
-                        self.extract_from_full(currArticle.find_element_by_tag_name('a').get_attribute('href'))
-                    
-                except:
-                    continue
-            
-            currIssue.close()
+            for thisArticle in volArticles:
+                currIssue = webdriver.Firefox() 
+                currIssue.get(thisArticle.find_element_by_tag_name('a').get_attribute('href'))
+                currIssue.implicitly_wait(3)
+                allArticles = currIssue.find_elements_by_xpath("//div[contains(@id,'issue-toc__ajax')]/section/article/ul[contains(@class,'search__list-style2')]/li") #/article")
+                
+                for currArticle in allArticles:
+                    try:
+                        if '/full' in currArticle.find_element_by_tag_name('a').get_attribute('href') and\
+                                not '#references' in currArticle.find_element_by_tag_name('a').get_attribute('href'):
+                            self.f.write('parse full: %s\n'%(currArticle.find_element_by_tag_name('a').get_attribute('href')))
+                            self.extract_from_full(currArticle.find_element_by_tag_name('a').get_attribute('href'))
+                        
+                    except:
+                        continue
+                
+                currIssue.close()
+        except:
+            print 'no journals on this'
             
         currVolumeDriver.close()
         
@@ -235,8 +241,8 @@ def main(argv):
 
     ps = subprocess.Popen("ps -ef | grep solr | grep -v grep", shell=True, stdout=subprocess.PIPE).communicate()[0]
     if ps:
-        print 'Solr database is already running ... PID is %s' %(ps.split(' ')[1])
-        journalsList.f.write('Solr database is already running ... PID is %s\n' %(ps.split(' ')[1]))
+        print 'Solr database is already running ... PID is %s' %(ps.split(' ')[2])
+        journalsList.f.write('Solr database is already running ... PID is %s\n' %(ps.split(' ')[2]))
 
         # # kill the process?
         # os.kill(int(ps.split(' ')[1]), signal.SIGKILL)
