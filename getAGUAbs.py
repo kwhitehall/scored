@@ -3,8 +3,10 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import Select
+from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.common.exceptions import NoSuchElementException
 from selenium.common.exceptions import NoAlertPresentException
+from pyvirtualdisplay import Display
 from tika import parser
 import unittest, time, re, os, sys, random, subprocess, shlex, signal
 import sunburnt, json, argparse, httplib2, getopt
@@ -16,7 +18,9 @@ Purpose:: To extract just the page meta data Abstract, keywords, Acknowledgement
 '''
 class AguChallenge(object): 
     def __init__(self):
-        self.driver = webdriver.Firefox()
+        display = Display(visible=0, size=(800, 600))
+        display.start()
+        self.driver = webdriver.Firefox() #Remote(command_executor='http://127.0.0.1:4444/wd/hub', desired_capabilities=DesiredCapabilities.FIREFOX) #Firefox()
         self.driver.implicitly_wait(3)
         self.base_url = "http://agupubs.onlinelibrary.wiley.com/agu/" 
         self.verificationErrors = []
@@ -50,6 +54,7 @@ class AguChallenge(object):
     
     def tearDown(self):
         self.driver.quit()
+        display.stop()
         self.assertEqual([], self.verificationErrors)
 
     def info_from_agu(self):
@@ -80,7 +85,7 @@ class AguChallenge(object):
         next = True
         count_debug = 1
         allIssuesURLs = []
-        journal = webdriver.Firefox()
+        journal = webdriver.Firefox() #Remote(command_executor='http://127.0.0.1:4444/wd/hub', desired_capabilities=DesiredCapabilities.FIREFOX) #Firefox()
         journal.get(journalPageUrl)
         time.sleep(3)
 
@@ -99,7 +104,7 @@ class AguChallenge(object):
         
         for currVolumeURL in allIssuesURLs:
             try:
-                currVolume = webdriver.Firefox()  
+                currVolume = webdriver.Firefox() #Remote(command_executor='http://127.0.0.1:4444/wd/hub', desired_capabilities=DesiredCapabilities.FIREFOX) #Firefox()  
                 currVolume.get(currVolumeURL)
                 currVolume.implicitly_wait(3)
                 time.sleep(3)
@@ -107,6 +112,7 @@ class AguChallenge(object):
                 #scrape on the page
                 self.get_info_from_agu_journal(currVolume)
                 currVolume.quit() #close()
+                display.stop()
             except:
                 self.get_info_from_agu_journal(journal)
                 continue
@@ -123,7 +129,7 @@ class AguChallenge(object):
             volArticles = currVolumeDriver.find_elements_by_xpath("//ol[contains(@class,'js-issues-list')]/li")
             
             for thisArticle in volArticles:
-                currIssue = webdriver.Firefox() 
+                currIssue = webdriver.Firefox() #Remote(command_executor='http://127.0.0.1:4444/wd/hub', desired_capabilities=DesiredCapabilities.FIREFOX) #Firefox() 
                 currIssue.get(thisArticle.find_element_by_tag_name('a').get_attribute('href'))
                 currIssue.implicitly_wait(3)
                 allArticles = currIssue.find_elements_by_xpath("//div[contains(@id,'issue-toc__ajax')]/section/article/ul[contains(@class,'search__list-style2')]/li") #/article")
@@ -156,7 +162,7 @@ class AguChallenge(object):
 
         si = self.solr
 
-        thisArticle = webdriver.Firefox()
+        thisArticle = webdriver.Firefox() #Remote(command_executor='http://127.0.0.1:4444/wd/hub', desired_capabilities=DesiredCapabilities.FIREFOX) #Firefox()
         thisArticle.get(url)
         time.sleep(3)
 
@@ -220,6 +226,14 @@ class AguChallenge(object):
 def main(argv):
     reload(sys)  
     sys.setdefaultencoding('utf8')
+    ps = subprocess.Popen("ps -ef | grep selenium-server-standalone | grep -v grep", shell=True, stdout=subprocess.PIPE).communicate()[0]
+    startSeleniumCmd = 'java -jar selenium-server-standalone-2.49.0.jar'
+    if ps:
+	print 'Selenium server is already running ... PID is %s' %(ps.split(' ')[2])
+    else:
+        subprocess.Popen(["java","-jar","selenium-server-standalone-2.49.0.jar"])
+        seleniumPID = subprocess.Popen("ps -ef | grep selenium-server-standalone | grep -v grep", shell=True, stdout=subprocess.PIPE).communicate()[0]
+        print 'Started Selenium server ... PID is %s: ' %(seleniumPID.split('(')[1].split(')')[0].split('=')[1])
 
     journalsList = AguChallenge()
 
@@ -238,8 +252,10 @@ def main(argv):
                 sys.exit()
             elif opt in '-s':
                 startSolrCmd = arg+' start'
+                print startSolrCmd
 
-    ps = subprocess.Popen("ps -ef | grep solr | grep -v grep", shell=True, stdout=subprocess.PIPE).communicate()[0]
+    journalsList.f.write('Selenium server is running ... PID is %s\n' %(ps.split(' ')[2]))
+    ps = subprocess.Popen("ps -ef | grep solr | grep start | grep -v grep", shell=True, stdout=subprocess.PIPE).communicate()[0]
     if ps:
         print 'Solr database is already running ... PID is %s' %(ps.split(' ')[2])
         journalsList.f.write('Solr database is already running ... PID is %s\n' %(ps.split(' ')[2]))
@@ -250,7 +266,7 @@ def main(argv):
         solrPID = subprocess.Popen(shlex.split(startSolrCmd), stdout=subprocess.PIPE, shell=False).communicate()[0]
         print 'Started Solr database ... PID is %s: ' %(solrPID.split('(')[1].split(')')[0].split('=')[1])
         journalsList.f.write('Started Solr database ... PID is %s\n' %(solrPID.split('(')[1].split(')')[0].split('=')[1]))
-    
+
     AguChallenge.info_from_agu(journalsList)
 
     # AguChallenge.info_from_agu_journal(datasetsList)
