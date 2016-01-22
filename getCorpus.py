@@ -16,16 +16,17 @@ import sunburnt, json, argparse, httplib2, getopt
 Purpose:: To extract just the page meta data Abstract, keywords, Acknowledgements, & section after Intro (Methodology/ Data) if available
             from AGU site. 
 '''
-class AguChallenge(object): 
-    def __init__(self):
+class scrapeJournal(object): 
+    def __init__(self,solrIntegration):
         display = Display(visible=0, size=(800, 600))
         display.start()
-        self.driver = webdriver.Firefox() #Remote(command_executor='http://127.0.0.1:4444/wd/hub', desired_capabilities=DesiredCapabilities.FIREFOX) #Firefox()
+        self.solrIntegration = solrIntegration
+        self.driver = webdriver.PhantomJS()
         self.driver.implicitly_wait(3)
         self.base_url = "http://agupubs.onlinelibrary.wiley.com/agu/" 
         self.verificationErrors = []
         self.accept_next_alert = True
-        self.log = os.getcwd()+'/agu.log'
+        self.log = os.getcwd()+'/getCorpus.log'
         self.f = open(self.log,'ab+')
         h = httplib2.Http(cache="/var/tmp/solr_cache")
         s = os.getcwd()+'/scored.xml'
@@ -85,7 +86,7 @@ class AguChallenge(object):
         next = True
         count_debug = 1
         allIssuesURLs = []
-        journal = webdriver.Firefox() #Remote(command_executor='http://127.0.0.1:4444/wd/hub', desired_capabilities=DesiredCapabilities.FIREFOX) #Firefox()
+        journal = webdriver.PhantomJS()
         journal.get(journalPageUrl)
         time.sleep(3)
 
@@ -104,8 +105,7 @@ class AguChallenge(object):
         
         for currVolumeURL in allIssuesURLs:
             try:
-                currVolume = webdriver.Firefox() #Remote(command_executor='http://127.0.0.1:4444/wd/hub', desired_capabilities=DesiredCapabilities.FIREFOX) #Firefox()  
-                currVolume.get(currVolumeURL)
+                currVolume = webdriver.PhantomJS() 
                 currVolume.implicitly_wait(3)
                 time.sleep(3)
                 # time.sleep(random.randint(4,20)) 
@@ -129,7 +129,7 @@ class AguChallenge(object):
             volArticles = currVolumeDriver.find_elements_by_xpath("//ol[contains(@class,'js-issues-list')]/li")
             
             for thisArticle in volArticles:
-                currIssue = webdriver.Firefox() #Remote(command_executor='http://127.0.0.1:4444/wd/hub', desired_capabilities=DesiredCapabilities.FIREFOX) #Firefox() 
+                currIssue = webdriver.PhantomJS()
                 currIssue.get(thisArticle.find_element_by_tag_name('a').get_attribute('href'))
                 currIssue.implicitly_wait(3)
                 allArticles = currIssue.find_elements_by_xpath("//div[contains(@id,'issue-toc__ajax')]/section/article/ul[contains(@class,'search__list-style2')]/li") #/article")
@@ -162,7 +162,7 @@ class AguChallenge(object):
 
         si = self.solr
 
-        thisArticle = webdriver.Firefox() #Remote(command_executor='http://127.0.0.1:4444/wd/hub', desired_capabilities=DesiredCapabilities.FIREFOX) #Firefox()
+        thisArticle = webdriver.PhantomJS() 
         thisArticle.get(url)
         time.sleep(3)
 
@@ -205,9 +205,17 @@ class AguChallenge(object):
             "citation_keywords":i["citation_keywords"],"citation_publisher":i["citation_publisher"].encode('utf-8'), "citation_online_date":i["citation_online_date"].encode('utf-8')}
         thisArticleJSON.update(partMeta)
 
+        #save json file
+        if not os.path.exists(os.getcwd()+'/jsonFiles'):
+            os.makedirs(os.getcwd()+'/jsonFiles')
+        filenameJSON = os.getcwd()+'/jsonFiles/'+url.split('://')[1].replace('/','-')+'.json'
+        with open(filenameJSON, 'w+') as f:
+            json.dump(thisArticleJSON,f)
+
         #index data into solr
-        si.add(thisArticleJSON)
-        self.f.write('added entry to solr DB\n')
+        if self.solrIntegration == True:
+            si.add(thisArticleJSON)
+            self.f.write('added entry to solr DB\n')
     
 
     def extract_from_abs(self,url):
@@ -226,52 +234,43 @@ class AguChallenge(object):
 def main(argv):
     reload(sys)  
     sys.setdefaultencoding('utf8')
-    ps = subprocess.Popen("ps -ef | grep selenium-server-standalone | grep -v grep", shell=True, stdout=subprocess.PIPE).communicate()[0]
-    startSeleniumCmd = 'java -jar selenium-server-standalone-2.49.0.jar'
-    if ps:
-	print 'Selenium server is already running ... PID is %s' %(ps.split(' ')[2])
-    else:
-        subprocess.Popen(["java","-jar","selenium-server-standalone-2.49.0.jar"])
-        seleniumPID = subprocess.Popen("ps -ef | grep selenium-server-standalone | grep -v grep", shell=True, stdout=subprocess.PIPE).communicate()[0]
-        print 'Started Selenium server ... PID is %s: ' %(seleniumPID.split('(')[1].split(')')[0].split('=')[1])
-
-    journalsList = AguChallenge()
-
+    solrIntegration = True
     try:
         opts, args = getopt.getopt(argv,"hs:")
+        if len(opts) == 1:
+            for opt, arg in opts:
+                if opt in '-h':
+                    print 'python getCorpus.py -s <solr_installation>'
+                    sys.exit()
+                elif opt in '-s':
+                    startSolrCmd = arg+' start'
+                    print startSolrCmd
+        else:
+            print 'Running with no solr integration'
+            solrIntegration = False
     except:
-        print 'python getAGUAbs.py -s <solr_installation>'
-        sys.exit(2)
-
-    if len(opts) != 1:
-        print 'python getAGUAbs.py -s <solr_installation>'
-    else:
-        for opt, arg in opts:
-            if opt in '-h':
-                print 'python getAGUAbs.py -s <solr_installation>'
-                sys.exit()
-            elif opt in '-s':
-                startSolrCmd = arg+' start'
-                print startSolrCmd
-
-    journalsList.f.write('Selenium server is running ... PID is %s\n' %(ps.split(' ')[2]))
-    ps = subprocess.Popen("ps -ef | grep solr | grep start | grep -v grep", shell=True, stdout=subprocess.PIPE).communicate()[0]
-    if ps:
-        print 'Solr database is already running ... PID is %s' %(ps.split(' ')[2])
-        journalsList.f.write('Solr database is already running ... PID is %s\n' %(ps.split(' ')[2]))
-
-        # # kill the process?
-        # os.kill(int(ps.split(' ')[1]), signal.SIGKILL)
-    else:
-        solrPID = subprocess.Popen(shlex.split(startSolrCmd), stdout=subprocess.PIPE, shell=False).communicate()[0]
-        print 'Started Solr database ... PID is %s: ' %(solrPID.split('(')[1].split(')')[0].split('=')[1])
-        journalsList.f.write('Started Solr database ... PID is %s\n' %(solrPID.split('(')[1].split(')')[0].split('=')[1]))
-
-    AguChallenge.info_from_agu(journalsList)
-
-    # AguChallenge.info_from_agu_journal(datasetsList)
+        print 'python getCorpus.py'
     
-    # AguChallenge.extract_from_full(datasetsList,"http://onlinelibrary.wiley.com/doi/10.1002/2015EF000306/full")
+    journalsList = scrapeJournal(solrIntegration)
+
+    if solrIntegration == True:
+        ps = subprocess.Popen("ps -ef | grep solr | grep start | grep -v grep", shell=True, stdout=subprocess.PIPE).communicate()[0]
+        if ps:
+            print 'Solr database is already running ... PID is %s' %(ps.split(' ')[2])
+            journalsList.f.write('Solr database is already running ... PID is %s\n' %(ps.split(' ')[2]))
+
+            # # kill the process?
+            # os.kill(int(ps.split(' ')[1]), signal.SIGKILL)
+        else:
+            solrPID = subprocess.Popen(shlex.split(startSolrCmd), stdout=subprocess.PIPE, shell=False).communicate()[0]
+            print 'Started Solr database ... PID is %s: ' %(solrPID.split('(')[1].split(')')[0].split('=')[1])
+            journalsList.f.write('Started Solr database ... PID is %s\n' %(solrPID.split('(')[1].split(')')[0].split('=')[1]))
+
+    scrapeJournal.info_from_agu(journalsList)
+
+    # scrapeJournal.info_from_agu_journal(datasetsList)
+    
+    # scrapeJournal.extract_from_full(datasetsList,"http://onlinelibrary.wiley.com/doi/10.1002/2015EF000306/full")
 
     # endSolrCmd = 'kill -9 '+ solrPID.split('(')[1].split(')')[0].split('=')[1]
     # subprocess.call(endSolrCmd, shell=True)
