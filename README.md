@@ -21,8 +21,8 @@ Python libs:
 * httplib2-0.92 - for use with Python binding for Solr
 
 ## To use
-* Ensure Solr is installed. Set up a Solr core called 'scored', and ensure Solr is accessible at http://localhost:8983/solr/scored
-The schema to use is available in this repo as scored.xml. Note that
+* Optional: install  Apache Solr. Set up a Solr core called 'scored', and ensure Solr is accessible at http://localhost:8983/solr/scored
+The schema to use is available in this repo as scored.xml. 
 * run the python script 'python getCorpus.py' or 'python getCorpus.py -s 'solrDBinstallation'' for Solr integration
 * wait for a bit
 * check the log files - agu.log for the script, ghostdriver.log for the PhantomJS driver
