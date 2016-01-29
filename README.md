@@ -1,4 +1,7 @@
 # scored
+
+<img src="./docs/img/scored_logo.png" align="right" width="300" />
+
 README for using getAGUAbs.py - the AGU challenge put forth by Lewis
 
 ## Purpose
