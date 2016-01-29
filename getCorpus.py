@@ -14,7 +14,7 @@ import sunburnt, json, argparse, httplib2, getopt
 
 '''
 Purpose:: To extract just the page meta data Abstract, keywords, Acknowledgements, & section after Intro (Methodology/ Data) if available
-            from AGU site. 
+            from AGU site.   
 '''
 class scrapeJournal(object): 
     def __init__(self,solrIntegration):
