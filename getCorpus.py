@@ -21,7 +21,7 @@ class scrapeJournal(object):
         display = Display(visible=0, size=(800, 600))
         display.start()
         self.solrIntegration = solrIntegration
-        self.driver = webdriver.PhantomJS()
+        self.driver = webdriver.PhantomJS() #Firefox()#PhantomJS()
         self.driver.implicitly_wait(3)
         self.base_url = "http://agupubs.onlinelibrary.wiley.com/agu/" 
         self.verificationErrors = []
@@ -80,7 +80,7 @@ class scrapeJournal(object):
                 allIssuesURLs.append(currVolumeURL)
             except:
                 continue
-
+        # allIssuesURLs = extract_all_issues(self, journalPageUrl)
         
         for currVolumeURL in allIssuesURLs:
             try:
@@ -128,7 +128,85 @@ class scrapeJournal(object):
             print 'no journals on this'
             
         currVolumeDriver.close()
+
+    def get_seedlist_allIssues(self, journalPageUrl):
+        '''
+        Provides first set of links that can be used in MR job
+        '''
+        next = True
+        count_debug = 1
+        allIssuesURLs = []
+        issues = []
+        journal = webdriver.PhantomJS() #Firefox()
+        journal.get(journalPageUrl)
+        time.sleep(3)
+
+        journal.find_element_by_link_text("All Issues").click()
+        journal.implicitly_wait(3)
+        time.sleep(3)
         
+        allIssues = journal.find_elements_by_xpath("//ol[contains(@class,'js-issues-volume-list')]/li")
+        allIssuesURLs.append(journalPageUrl)
+        for issue in allIssues:
+            try:
+                currVolumeURL = issue.find_element_by_tag_name('a').get_attribute('href')
+                allIssuesURLs.append(currVolumeURL)
+            except:
+                continue
+
+        #for each link, get all the a tags for the issue. This can be a M/R job
+        with(open ('seedlist.txt', 'ab')) as f:
+            for vol in allIssuesURLs:
+                try:
+                    currIssues = journal.find_elements_by_xpath("//ol[contains(@class,'js-issues-list all-issues')]/li/div/div/a")#.get_attribute('href')
+                    
+                    for i in currIssues:
+                        issues.append(i.get_attribute('href'))
+                        f.write('%s\n' %i.get_attribute('href'))
+                except:
+                    continue
+            
+        journal.close()
+        
+        return issues
+
+    def get_seedlist_allArticles(self,seedFile):    
+        '''
+        Takes the seeds from get_seedlist_allIssues, then finds all articles on that link.
+        egs of that link are: 
+        http://agupubs.onlinelibrary.wiley.com/agu/issue/10.1002/eft2.2015.3.issue-12/
+        http://agupubs.onlinelibrary.wiley.com/agu/issue/10.1002/grl.v43.1/
+        The seedlist from here can now be passed to NUTCH
+        '''
+        allArticles = []
+        articles = []
+        seeds = ([line.rstrip() for line in open('seedlist.txt')])
+        
+        with(open('seedlist2.txt','ab')) as f:
+            for url in seeds:
+                currIssue = webdriver.PhantomJS() #Firefox()
+                currIssue.get(url)
+                time.sleep(3)
+
+                try:
+                    allArticles = currIssue.find_elements_by_xpath("//div[contains(@id,'issue-toc__ajax')]/section/article/ul[contains(@class,'search__list-style2')]/li") 
+                except:
+                    continue
+
+                #below should be the M/R job
+                for currArticle in allArticles:
+                        try:
+                            if '/full' in currArticle.find_element_by_tag_name('a').get_attribute('href') and\
+                                    not '#references' in currArticle.find_element_by_tag_name('a').get_attribute('href'):
+                                f.write('%s\n'%(currArticle.find_element_by_tag_name('a').get_attribute('href')))
+                                articles.append(currArticle.find_element_by_tag_name('a').get_attribute('href'))
+                        except:
+                            continue
+                
+                currIssue.close()
+
+        return articles
+
 
     def extract_from_full(self, url):
         '''
@@ -245,8 +323,10 @@ def main(argv):
             print 'Started Solr database ... PID is %s: ' %(solrPID.split('(')[1].split(')')[0].split('=')[1])
             journalsList.f.write('Started Solr database ... PID is %s\n' %(solrPID.split('(')[1].split(')')[0].split('=')[1]))
 
-    scrapeJournal.info_from_agu(journalsList)
-
+    journalURL = 'http://agupubs.onlinelibrary.wiley.com/agu/journal/10.1002/%28ISSN%292333-5084/issues/'
+    # scrapeJournal.info_from_agu(journalsList)
+    # scrapeJournal.get_seedlist_allIssues(journalsList, journalURL)
+    scrapeJournal.get_seedlist_allArticles(journalsList,'/Users/kwhitehall/Documents/capstones/usc_spring_2016/searchRel/scored/seedlist.txt')
     # scrapeJournal.info_from_agu_journal(datasetsList)
     
     # scrapeJournal.extract_from_full(datasetsList,"http://onlinelibrary.wiley.com/doi/10.1002/2015EF000306/full")
