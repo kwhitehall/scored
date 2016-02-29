@@ -5,15 +5,16 @@ import time, sys, os, difflib, fileinput, re, urllib2, cookielib, json, multipro
 
 if os.path.exists(os.getcwd()+'/seedList.txt'):
 	os.remove(os.getcwd()+'/seedList.txt')
-# if os.path.exists(os.getcwd()+'/issuelist.txt'):
-# 	os.remove(os.getcwd()+'/issuelist.txt')
+if os.path.exists(os.getcwd()+'/issuelist.txt'):
+	os.remove(os.getcwd()+'/issuelist.txt')
 
 
 class scrapeAMSJournal(object):
-	def __init__(self):
+	def __init__(self, url):
 		self.driver = webdriver.PhantomJS()
+		#.clearCookies()
 		self.driver.set_window_size(1024, 768)
-		self.driver.get('http://agupubs.onlinelibrary.wiley.com/agu/')#('http://journals.ametsoc.org')
+		self.driver.get(url)
 		self.cj = cookielib.CookieJar()
 		self.opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.cj))
 		self.xpages = 10
@@ -23,51 +24,60 @@ class scrapeAMSJournal(object):
 			Purpose: To Iterate through each AMS Journal page within the website.  
 		'''
 
-		# allIssues = self.driver.find_elements_by_xpath("//div[@class='content-area']/div/div/div/ul/li")
-		# fname = 'issuelist.txt'
-		# url ='http://agupubs.onlinelibrary.wiley.com/agu/'
-		# with open(fname, 'ab+') as f:
-		# 	for i in allIssues:
-		# 		if 'journal' in i.find_element_by_tag_name('a').get_attribute('href'):
-		# 			if url in i.find_element_by_tag_name('a').get_attribute('href'):
-		# 				f.write('%s\n' %((i.find_element_by_tag_name('a').get_attribute('href'))+'(issues)'))
-		# 			else:
-		# 				f.write('%s\n' %i.find_element_by_tag_name('a').get_attribute('href'))
-		# 			print i.find_element_by_tag_name('a').text
-		# self.driver.close()
-		# sys.exit()
+		allIssues = self.driver.find_elements_by_xpath("//div[@class='content-area']/div/div/div/ul/li")
+		fname = 'issuelist.txt'
+		url ='http://agupubs.onlinelibrary.wiley.com'
+		with open(fname, 'ab+') as f:
+			for i in allIssues:
+				if 'journal' in i.find_element_by_tag_name('a').get_attribute('href'):
+					if url in i.find_element_by_tag_name('a').get_attribute('href'):
+						currLink = (i.find_element_by_tag_name('a').get_attribute('href'))+'issues'
+						# f.write('%s\n' %((i.find_element_by_tag_name('a').get_attribute('href'))+'issues'))
+					else:
+						currLink = i.find_element_by_tag_name('a').get_attribute('href')
+						# f.write('%s\n' %i.find_element_by_tag_name('a').get_attribute('href'))
+					print i.find_element_by_tag_name('a').text, ' ', currLink
+					f.write('%s\n' %currLink)
+
+				soup = self.get_page_soup(currLink)#, strain)
+				self.get_issues_list(soup, fname, url)#, currLink) #url)
+		self.driver.close()
+		sys.exit()
 		
 		fname = 'issuelist.txt'
 		allIssues = [line.rstrip() for line in open(fname)]
 		jobs = []
+
+		for j in allIssues:
+			self.get_articles_list(j, fname)
 		
 		#get every xpages in parallel
-		for i in range(0, len(allIssues), self.xpages):
-			for j in range(i, i+self.xpages):
-				p = multiprocessing.Process(target=self.get_articles_list(allIssues[j]), args=(allIssues[j],))
-				jobs.append(p)
-				p.start()
-			jobs = []
+		# for i in range(0, len(allIssues), self.xpages):
+		# 	for j in range(i, i+self.xpages):
+		# 		p = multiprocessing.Process(target=self.get_articles_list(allIssues[j]), args=(allIssues[j],))
+		# 		jobs.append(p)
+		# 		p.start()
+		# 	jobs = []
 
-		#get info from pages - also in parallel
-		allArticles = [line.rstrip() for line in open('seedList.txt')]
-		jobs = []
-		for i in range(0, len(allArticles), self.xpages):
-			for j in range(i, i+self.xpages):
-				try:
-					p = multiprocessing.Process(target=self.get_full_text(allArticles[j]), args=(allArticles[j],))
-					jobs.append(p)
-					p.start()
-				except:
-					print 'finished'
-			jobs = []
+		# #get info from pages - also in parallel
+		# allArticles = [line.rstrip() for line in open('seedList.txt')]
+		# jobs = []
+		# for i in range(0, len(allArticles), self.xpages):
+		# 	for j in range(i, i+self.xpages):
+		# 		try:
+		# 			p = multiprocessing.Process(target=self.get_full_text(allArticles[j]), args=(allArticles[j],))
+		# 			jobs.append(p)
+		# 			p.start()
+		# 		except:
+		# 			print 'finished'
+		# 	jobs = []
 
 	def info_from_ams(self):
 		'''
 			Purpose: To Iterate through each AMS Journal page within the website.  
 		'''
 
-		# currLink = self.driver.current_url
+		currLink = self.driver.current_url
 
 		allIssues = self.driver.find_elements_by_partial_link_text('Available')
 		strain = "middleCol"
@@ -112,6 +122,7 @@ class scrapeAMSJournal(object):
 			request = urllib2.Request(link)
 			response = self.opener.open(request)
 			time.sleep(5)
+			self.cj.clear()
 			return response.read()
 		except:
 			print 'unable to reach link'
@@ -119,62 +130,128 @@ class scrapeAMSJournal(object):
 
 	def get_page_soup(self, link, strain=None):
 		''' return html using BS for a page '''
+		print 'in get_page_soup ', link
+		#need to check if soup returned or page not reachable
 		html = self.get_html(link)
 
 		if html:
 			if strain:
 				strainer = SoupStrainer(id=strain)
-				return BeautifulSoup(html, parse_only=strainer)
+				try:
+					return BeautifulSoup(html, parse_only=strainer)
+				except:
+					return False
 			else:
-				return BeautifulSoup(html)
+				try:
+					return BeautifulSoup(html)
+				except:
+					return False
 		
 
 	def get_issues_list(self, soup, filename, pubHouse=None):
 		''' generate issuelist from all issues on a given page'''
 
-		stopwords = ['facebook', 'twitter', 'youtube', 'linkedin', 'membership', 'subscribe', 'subscription', 'blog'\
-					 'submit', 'contact', 'listserve', 'login', 'disclaim']
+		stopwords = ['facebook', 'twitter', 'youtube', 'linkedin', 'membership', 'subscribe', 'subscription', 'blog',\
+					 'submit', 'contact', 'listserve', 'login', 'disclaim', 'editor', 'section', 'librarian', 'alert',\
+					 '#', 'email', '?', 'copyright', 'license', 'charges', 'terms', 'mailto:', 'submission', 'author',\
+					 'media', 'news']
 		currLink = ''
 		lastURL = ''
 		penulURL = ''
-
+		
 		for link in soup.find_all('a'):
+			if not pubHouse:
+				pubHouse = 'http://'+link.get('href').split('http://')[1].split('/')[0]
 			
-			if 'seedList' in filename:
-				try:
-					allLines = [line.rstrip() for line in open(filename)]
-				except:
-					allLines = []
-				
-				with open(filename,'ab+') as f:
-					if (link.get('href')).lower().startswith('http') or 'doi/' in link.get('href'):	
-						if (link.get('href')).lower().startswith('/doi'):
-							if pubHouse:
-								currLink = pubHouse+link.get('href')
-						else:
-							currLink = link.get('href')
-						
+			doi = self.link_has_doi(link.get('href'))
+
+			try:
+				allLines = [line.rstrip() for line in open(filename)]
+			except:
+				allLines = []
+			
+			with open(filename,'ab+') as f:
+				currLink = self.get_link(link.get('href'), pubHouse)
+				textDiff = self.compare_text(currLink, allLines)
+
+				if 'issuelist.txt' in filename:
+					if currLink.lower().startswith('http') or doi:
 						if not(any(word in currLink.lower() for word in stopwords)):
-							print 'currLink: ',currLink
+							if textDiff == True:
+								f.write('%s\n' %currLink)
+
+							self.iterative_issues(soup, allLines, f, pubHouse)
+
+
+				elif 'seedList.txt' in filename:
+					if currLink.lower().startswith('http') or doi:	
+						if not(any(word in currLink.lower() for word in stopwords)):
 							if 'abs' in currLink.lower():
 								f.write('%s\n' %currLink)
-							if 'full' in currLink.lower():
-								textDiff = self.compare_text(currLink, allLines)
-								
+							elif 'full' in currLink.lower():
 								if textDiff == True:
 									f.write('%s\n' %currLink)
-			else:
-				with open(filename,'ab+') as f:
-					if (link.get('href')).lower().startswith('http') or 'doi/' in link.get('href'):	
-						if currLink.lower().startswith('/doi'):
-							if pubHouse:
-								currLink = pubHouse+link.get('href')
-						else:
-							currLink = link.get('href')
-						
-						if not(any(word in currLink.lower() for word in stopwords)):
+							
+							self.iterative_issues(soup, allLines, f, pubHouse)
+				else:
+					if not(any(word in currLink.lower() for word in stopwords)):
+						if textDiff == True:
 							f.write('%s\n' %currLink)
-					
+							self.iterative_issues(soup, allLines, f, pubHouse)
+
+	def iterative_issues(self, soup, issuelist, f, pubHouse):
+		''' keeps diving down on issues pages until article page is reached'''
+		print 'in iterative_issues_search: ', issuelist
+		issues = []
+		allIssuesList = []
+		allIssuesList = issuelist 
+		issues = issuelist
+
+		volumes = soup.find_all(class_=re.compile("olumes")) #add the all issues option here?
+		if volumes:
+			for v in volumes:
+				links = v.findAll('a')
+				for a in links:
+					if a.get('href'):
+						currLink = self.get_link(a.get('href'),pubHouse)
+						textDiff = self.compare_text(currLink, allIssuesList)
+						if textDiff == True:
+							f.write('%s\n' %currLink)
+							issues.append(currLink)
+							allIssuesList.append(currLink)
+						else:
+							textDiff = self.compare_text(currLink, issues)
+										
+			
+	def get_link (self, link, pubHouse):
+		''' utility function for generating an absolute link if necessary '''
+		if not link.lower().startswith('http'):
+			if pubHouse:
+				return pubHouse+link
+		else:
+			return link
+
+	def link_has_doi (self, link):
+		''' utility function to check if a link is a doi link '''
+		if not link.lower().startswith('http'):
+			if 'doi/' in link:
+				return True
+			elif any([self.is_number(i) for i in link.split('/')]):
+				return True
+			else:
+				return False
+
+	def is_number(self,s):
+		''' utility function to check if a string is a decimal number'''
+		try:
+			float(s)
+			if '.' in s:
+				return True
+			else: 
+				return False
+		except ValueError:
+			return False
+
 
 	def compare_text(self, url, urlList):
 		''' check for link in a urlList '''
@@ -185,26 +262,33 @@ class scrapeAMSJournal(object):
 		if urlList == [] or len(urlList) < 2:
 			return True
 
-		for i in urlList:
-			textDiff = ''
-			for _,s in enumerate(difflib.ndiff(url, i)):
-				if s[0] == ' ': continue
-				elif s[0] == '+': textDiff += s[2]
-			diffList.append(textDiff)
-		
-		for diff in diffList:
-			if ('abs' in diff.lower() and len(diff) <= 9) or (diff == None):
-				return False
+		elif filter(lambda x: url in x, urlList):
+			return False
+
+		else:
+			for i in urlList:
+				textDiff = ''
+				for _,s in enumerate(difflib.ndiff(url, i)):
+					if s[0] == ' ': continue
+					elif s[0] == '+': textDiff += s[2]
+				diffList.append(textDiff)
+			
+			for diff in diffList:
+				if diff == None or ('abs' in diff.lower() and len(diff) <= 9):
+					return False
+				
 
 		return True
+
 	
-	def get_articles_list(self, page):
+	def get_articles_list(self, page, issuelist=None):
 		''' generate the journals lists from the issues list '''
 		
 		soup = self.get_page_soup(page)
 		fname = 'seedList.txt'
+		issues = []
+		again = True
 		pubHouse = 'http://'+page.split('http://')[1].split('/')[0]
-		print 'pubHouse ', pubHouse
 		self.get_issues_list(soup,fname, pubHouse)
 
 
@@ -366,11 +450,13 @@ class scrapeAMSJournal(object):
 
 def main():
 	print 'Extracting Data from Journals...'
-	journals = scrapeAMSJournal()
+
+	ametsocURL = 'http://journals.ametsoc.org'
+	aguURL = 'http://agupubs.onlinelibrary.wiley.com/agu'
+	# journals = scrapeAMSJournal(ametsocURL)
+	# journals.info_from_ams() 
+	journals = scrapeAMSJournal(aguURL)
 	journals.info_from_agu() 
 
 if __name__ == '__main__':
     main()
-
-#//*[@id="tocContent"]/table[1]/tbody/tr/td[3]/a[1]
-#//*[@id="tocContent"]/table[2]/tbody/tr/td[3]/a[1]
