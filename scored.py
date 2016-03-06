@@ -8,113 +8,79 @@ if os.path.exists(os.getcwd()+'/seedList.txt'):
 if os.path.exists(os.getcwd()+'/issuelist.txt'):
 	os.remove(os.getcwd()+'/issuelist.txt')
 
+'''Purpose: To create seedlist of journal issues and extract article page metadata from
+			AMS and other journal websites 
+	Inputs: Instantiate with URL of website, 0 or 1 (indicating xpath or classtag) and file of xpaths
+			or class tag string
+'''
 
-class scrapeAMSJournal(object):
-	def __init__(self, url):
+class scored(object):
+	def __init__(self, url, num, input):
 		self.driver = webdriver.PhantomJS()
-		#.clearCookies()
 		self.driver.set_window_size(1024, 768)
 		self.driver.get(url)
 		self.cj = cookielib.CookieJar()
 		self.opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.cj))
 		self.xpages = 10
+		self.url = url
+		self.log = os.getcwd() + "/scored.log"
+		self.f = open(self.log,'ab+')
+		if num == 0:
+			try:
+				xpathf = open(input, "r")
+				self.f.write("Name of the file: ", xpathf.name + '\n')
+				xpath_list = [line.strip() for line in xpathf]
+				self.get_journal_list_by_xpath(url, xpath_list)
+			except:
+				print "The file " + input + " does not exist"
+		elif num == 1:
+			class_name = input
+			self.f.write("Using " + input + " as class tag \n")
+			self.get_journal_list_by_classtag(url, class_name)
+		else:
+			print "Please enter a legal input"
 
-	def info_from_agu(self):
+	def get_journal_list_by_xpath(self, url, xpath_list):
 		'''
-			Purpose: To Iterate through each AMS Journal page within the website.  
-		'''
-
-		allIssues = self.driver.find_elements_by_xpath("//div[@class='content-area']/div/div/div/ul/li")
-		fname = 'issuelist.txt'
-		url ='http://agupubs.onlinelibrary.wiley.com'
-		with open(fname, 'ab+') as f:
-			for i in allIssues:
-				if 'journal' in i.find_element_by_tag_name('a').get_attribute('href'):
-					if url in i.find_element_by_tag_name('a').get_attribute('href'):
-						currLink = (i.find_element_by_tag_name('a').get_attribute('href'))+'issues'
-						# f.write('%s\n' %((i.find_element_by_tag_name('a').get_attribute('href'))+'issues'))
-					else:
-						currLink = i.find_element_by_tag_name('a').get_attribute('href')
-						# f.write('%s\n' %i.find_element_by_tag_name('a').get_attribute('href'))
-					print i.find_element_by_tag_name('a').text, ' ', currLink
-					f.write('%s\n' %currLink)
-
-				soup = self.get_page_soup(currLink)#, strain)
-				self.get_issues_list(soup, fname, url)#, currLink) #url)
-		self.driver.close()
-		sys.exit()
-		
-		fname = 'issuelist.txt'
-		allIssues = [line.rstrip() for line in open(fname)]
-		jobs = []
-
-		for j in allIssues:
-			self.get_articles_list(j, fname)
-		
-		#get every xpages in parallel
-		# for i in range(0, len(allIssues), self.xpages):
-		# 	for j in range(i, i+self.xpages):
-		# 		p = multiprocessing.Process(target=self.get_articles_list(allIssues[j]), args=(allIssues[j],))
-		# 		jobs.append(p)
-		# 		p.start()
-		# 	jobs = []
-
-		# #get info from pages - also in parallel
-		# allArticles = [line.rstrip() for line in open('seedList.txt')]
-		# jobs = []
-		# for i in range(0, len(allArticles), self.xpages):
-		# 	for j in range(i, i+self.xpages):
-		# 		try:
-		# 			p = multiprocessing.Process(target=self.get_full_text(allArticles[j]), args=(allArticles[j],))
-		# 			jobs.append(p)
-		# 			p.start()
-		# 		except:
-		# 			print 'finished'
-		# 	jobs = []
-
-	def info_from_ams(self):
-		'''
-			Purpose: To Iterate through each AMS Journal page within the website.  
+			Access journal links through supplied xpaths from user
 		'''
 
-		currLink = self.driver.current_url
+		journalDriver = webdriver.PhantomJS()
+		journalDriver.get(url)
 
-		allIssues = self.driver.find_elements_by_partial_link_text('Available')
-		strain = "middleCol"
-		fname = 'issuelist.txt'
+		fileName = "issuelist.txt"
+		soups = []
 
-		for i in allIssues:
-			print i.get_attribute('href')
-			soup = self.get_page_soup(i.get_attribute('href'), strain)
-		
-			self.get_issues_list(soup, fname)
+		for xpath in xpath_list:
+
+			xpathElement = journalDriver.find_element_by_xpath(xpath)
+			self.f.write(xpathElement.get_attribute('href') + '\n')
+			soup = self.get_page_soup(xpathElement.get_attribute('href'))
+			self.get_issues_list(soup, fileName)
 
 		self.driver.close()
-		
-		fname = 'issuelist.txt'
-		allIssues = [line.rstrip() for line in open(fname)]
-		jobs = []
-		
-		#get every xpages in parallel
-		for i in range(0, len(allIssues), self.xpages):
-			for j in range(i, i+self.xpages):
-				p = multiprocessing.Process(target=self.get_articles_list(allIssues[j]), args=(allIssues[j],))
-				jobs.append(p)
-				p.start()
-			jobs = []
 
-		#get info from pages - also in parallel
-		allArticles = [line.rstrip() for line in open('seedList.txt')]
-		jobs = []
-		for i in range(0, len(allArticles), self.xpages):
-			for j in range(i, i+self.xpages):
-				try:
-					p = multiprocessing.Process(target=self.get_full_text(allArticles[j]), args=(allArticles[j],))
-					jobs.append(p)
-					p.start()
-				except:
-					print 'finished'
-			jobs = []
+	def get_journal_list_by_classtag(self, url, class_name):
+		'''
+			Access journal links through supplied class tags of
+			links, from the user
+		'''
+
+		journalDriver = webdriver.PhantomJS()
+		journalDriver.get(url)
+
+		fileName = "issuelistClass.txt"
+
+		classTagArray = []
+		classTagArray = journalDriver.find_elements_by_class_name(class_name)
+
+		for classTag in classTagArray:
+			self.f.write(classTag.find_element_by_tag_name('a').get_attribute('href')+ '\n')
+			soup = self.get_page_soup(classTag.find_element_by_tag_name('a').get_attribute('href'))
+			self.get_issues_list(soup, fileName)
+
+		self.driver.close()
+
 
 	def get_html(self, link):
 		''' reach html using urllib2 & cookies '''
@@ -154,15 +120,18 @@ class scrapeAMSJournal(object):
 		stopwords = ['facebook', 'twitter', 'youtube', 'linkedin', 'membership', 'subscribe', 'subscription', 'blog',\
 					 'submit', 'contact', 'listserve', 'login', 'disclaim', 'editor', 'section', 'librarian', 'alert',\
 					 '#', 'email', '?', 'copyright', 'license', 'charges', 'terms', 'mailto:', 'submission', 'author',\
-					 'media', 'news']
+					 'media', 'news', 'rss', 'mobile', 'help']
 		currLink = ''
 		lastURL = ''
 		penulURL = ''
 		
 		for link in soup.find_all('a'):
-			if not pubHouse:
-				pubHouse = 'http://'+link.get('href').split('http://')[1].split('/')[0]
-			
+			try:
+				if not pubHouse:
+					pubHouse = 'http://'+link.get('href').split('http://')[1].split('/')[0]
+			except:
+				pubHouse = self.url
+
 			doi = self.link_has_doi(link.get('href'))
 
 			try:
@@ -201,7 +170,6 @@ class scrapeAMSJournal(object):
 
 	def iterative_issues(self, soup, issuelist, f, pubHouse):
 		''' keeps diving down on issues pages until article page is reached'''
-		print 'in iterative_issues_search: ', issuelist
 		issues = []
 		allIssuesList = []
 		allIssuesList = issuelist 
@@ -453,10 +421,11 @@ def main():
 
 	ametsocURL = 'http://journals.ametsoc.org'
 	aguURL = 'http://agupubs.onlinelibrary.wiley.com/agu'
-	# journals = scrapeAMSJournal(ametsocURL)
-	# journals.info_from_ams() 
-	journals = scrapeAMSJournal(aguURL)
-	journals.info_from_agu() 
+	#journals = scored(ametsocURL, 0, 'xpathTest.txt')
+	journals = scored(ametsocURL, 1, 'journalListing')
+	#journals.info_from_ams() 
+	#journals = scrapeAMSJournal(aguURL)
+	#journals.info_from_agu() 
 
 if __name__ == '__main__':
     main()
