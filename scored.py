@@ -3,10 +3,12 @@ from bs4 import BeautifulSoup, SoupStrainer
 import time, sys, os, difflib, fileinput, re, urllib2, cookielib, json, multiprocessing
 
 
-if os.path.exists(os.getcwd()+'/seedList.txt'):
-	os.remove(os.getcwd()+'/seedList.txt')
-if os.path.exists(os.getcwd()+'/issuelist.txt'):
-	os.remove(os.getcwd()+'/issuelist.txt')
+# if os.path.exists(os.getcwd()+'/journals.txt'):
+# 	os.remove(os.getcwd()+'/journals.txt')
+# if os.path.exists(os.getcwd()+'/issuelist.txt'):
+# 	os.remove(os.getcwd()+'/issuelist.txt')
+if os.path.exists(os.getcwd()+'/seedlist.txt'):
+	os.remove(os.getcwd()+'/seedlist.txt')
 
 '''Purpose: To create seedlist of journal issues and extract article page metadata from
 			AMS and other journal websites 
@@ -15,90 +17,128 @@ if os.path.exists(os.getcwd()+'/issuelist.txt'):
 '''
 
 class scored(object):
-	def __init__(self, url, num, input):
+	def __init__(self, url, num, input1):
 		self.driver = webdriver.PhantomJS()
 		self.driver.set_window_size(1024, 768)
-		self.driver.get(url)
+		# self.driver.get(url)
 		self.cj = cookielib.CookieJar()
 		self.opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.cj))
 		self.xpages = 10
 		self.url = url
-		self.log = os.getcwd() + "/scored.log"
+		self.log = os.getcwd() + '/scored.log'
 		self.f = open(self.log,'ab+')
-		if num == 0:
-			try:
-				xpathf = open(input, "r")
-				self.f.write("Name of the file: ", xpathf.name + '\n')
-				xpath_list = [line.strip() for line in xpathf]
-				self.get_journal_list_by_xpath(url, xpath_list)
-			except:
-				print "The file " + input + " does not exist"
-		elif num == 1:
-			class_name = input
-			self.f.write("Using " + input + " as class tag \n")
-			self.get_journal_list_by_classtag(url, class_name)
-		else:
-			print "Please enter a legal input"
+		self.num = num
+		self.input1 = input1
 
-	def get_journal_list_by_xpath(self, url, xpath_list):
-		'''
-			Access journal links through supplied xpaths from user
-		'''
 
-		journalDriver = webdriver.PhantomJS()
-		journalDriver.get(url)
+	def get_journal_list(self):
+		# journalDriver = webdriver.PhantomJS()
+		# journalDriver.get(self.url)
+		self.driver.get(self.url)
+		fname = "journals.txt"
+		
+		with open(fname, 'ab+') as f:
+			if self.num == 0:
+				try:
+					self.f.write('Name of file: %s\n' %self.input1 )
+					xpathList = [line.strip() for line in open(self.input1)]
+					for xpath in xpathList:
+						xpathElement = journalDriver.find_element_by_xpath(xpath)
+						self.f.write('xpath: %s\n' %xpathElement.get_attribute('href'))
+						f.write('%s\n' %xpathElement.get_attribute('href'))
+				except:
+					print 'The file ' + self.input1 + ' does not exist'
 
-		fileName = "issuelist.txt"
-		soups = []
-
-		for xpath in xpath_list:
-
-			xpathElement = journalDriver.find_element_by_xpath(xpath)
-			self.f.write(xpathElement.get_attribute('href') + '\n')
-			soup = self.get_page_soup(xpathElement.get_attribute('href'))
-			self.get_issues_list(soup, fileName)
-
-		self.driver.close()
-
-	def get_journal_list_by_classtag(self, url, class_name):
-		'''
-			Access journal links through supplied class tags of
-			links, from the user
-		'''
-
-		journalDriver = webdriver.PhantomJS()
-		journalDriver.get(url)
-
-		fileName = "issuelistClass.txt"
-
-		classTagArray = []
-		classTagArray = journalDriver.find_elements_by_class_name(class_name)
-
-		for classTag in classTagArray:
-			self.f.write(classTag.find_element_by_tag_name('a').get_attribute('href')+ '\n')
-			soup = self.get_page_soup(classTag.find_element_by_tag_name('a').get_attribute('href'))
-			self.get_issues_list(soup, fileName)
+			elif self.num == 1:
+				try:
+					classTagArray = journalDriver.find_elements_by_class_name(self.input1)
+					self.f.write('Using %s as class tag \n' %self.input1)
+					for classTag in classTagArray:
+						self.f.write('class: %s\n' %classTag.find_element_by_tag_name('a').get_attribute('href'))
+						f.write('%s\n' %classTag.find_element_by_tag_name('a').get_attribute('href'))
+				except: 
+					print 'The class_name '+ self.input1 + 'is not valid on the input site provided'
+			
+			elif self.num == 2:
+				try:
+					allXpaths = self.driver.find_elements_by_xpath(self.input1)
+					for i in allXpaths:
+						if 'journal' in i.find_element_by_tag_name('a').get_attribute('href'):
+							if self.url in i.find_element_by_tag_name('a').get_attribute('href'):
+								currLink = (i.find_element_by_tag_name('a').get_attribute('href'))+'issues'
+							else:
+								currLink = i.find_element_by_tag_name('a').get_attribute('href')
+							f.write('%s\n' %currLink)
+				except:
+					print 'The xpath provided, ' + self.input1 + 'is not valid for the input site provided'
+			
+			else:
+				print "Please enter a legal input"
 
 		self.driver.close()
 
 
-	def get_html(self, link):
-		''' reach html using urllib2 & cookies '''
+	def get_issues_list(self):
+		''' get all issues '''
+
+		fname = 'issuelist.txt'
+		jfname = 'journals.txt'
+
 		try:
-			request = urllib2.Request(link)
-			response = self.opener.open(request)
+			journals = [line.rstrip() for line in open(jfname)]
+		except: 
+			self.f.write('No journals.txt\n')
+			sys.exit()
+		for j in journals:
+			soup = self.get_page_soup(j)
+			self.get_list(soup, j, fname)
+
+
+	def get_articles_list(self):
+		''' generate the journals lists from the issues list '''
+		
+		fname = 'seedlist.txt'
+		iname = 'issuelist.txt'
+		issues = []
+		again = True
+
+		try:
+			issues = [line.rstrip() for line in open(iname)]
+		except: 
+			self.f.write('No issuelist.txt\n')
+			sys.exit()
+
+		for page in issues:
+			soup = self.get_page_soup(page)
+			self.get_list(soup, page, fname)
+
+
+	def get_html(self, link, selenium=None):
+		''' reach html using urllib2 & cookies '''
+		if selenium:
+			self.driver.get(link)
 			time.sleep(5)
-			self.cj.clear()
-			return response.read()
-		except:
-			print 'unable to reach link'
+			return self.driver.page_source
+		else:
+			try:
+				request = urllib2.Request(link)
+				response = self.opener.open(request)
+				time.sleep(5)
+				self.cj.clear()
+				return response.read()
+			except:
+				print 'unable to reach link'
 			return False
 
-	def get_page_soup(self, link, strain=None):
+
+	def get_page_soup(self, link, selenium = None, strain=None):
 		''' return html using BS for a page '''
 		print 'in get_page_soup ', link
-		#need to check if soup returned or page not reachable
-		html = self.get_html(link)
+
+		if selenium:
+			html = self.get_html(link, selenium=True)
+		else:
+			html = self.get_html(link)
 
 		if html:
 			if strain:
@@ -114,23 +154,37 @@ class scored(object):
 					return False
 		
 
-	def get_issues_list(self, soup, filename, pubHouse=None):
+	def get_list(self, soup, soupURL, filename, pubHouse=None):
 		''' generate issuelist from all issues on a given page'''
 
 		stopwords = ['facebook', 'twitter', 'youtube', 'linkedin', 'membership', 'subscribe', 'subscription', 'blog',\
 					 'submit', 'contact', 'listserve', 'login', 'disclaim', 'editor', 'section', 'librarian', 'alert',\
 					 '#', 'email', '?', 'copyright', 'license', 'charges', 'terms', 'mailto:', 'submission', 'author',\
-					 'media', 'news', 'rss', 'mobile', 'help']
+					 'media', 'news', 'rss', 'mobile', 'help', 'award', 'meetings','job', 'access', 'privacy', 'features'\
+					 'information', 'search', 'page', 'book', 'aim']
 		currLink = ''
-		lastURL = ''
-		penulURL = ''
+		issues = []
+		issuelist = []
+		links = []
+		seeds = []
+		eachlink = ''
 		
-		for link in soup.find_all('a'):
+		try:
+			journals = [line.rstrip() for line in open('journals.txt')]
+		except:
+			journals = []
+			self.f.write('No journals.txt to compare urls against. \n')
+			
+		if 'seedlist.txt' in filename:
 			try:
-				if not pubHouse:
-					pubHouse = 'http://'+link.get('href').split('http://')[1].split('/')[0]
+				issues = [line.rstrip() for line in open('issuelist.txt')]
 			except:
-				pubHouse = self.url
+				issues = []
+				self.f.write('No issuelist.txt to compare urls against. \n')
+		
+		for link in soup.find_all('a', href=True):
+			if not pubHouse:
+				pubHouse = 'http://'+self.url.split('http://')[1].split('/')[0]
 
 			doi = self.link_has_doi(link.get('href'))
 
@@ -139,57 +193,82 @@ class scored(object):
 			except:
 				allLines = []
 			
+			try:
+				issuesTmp = [line.rstrip() for line in open('issuelistTmp.txt')]
+			except:
+				issuesTmp = []
+
+			allLines += journals + issues + issuesTmp
+
+			allLines.append(soupURL)
+
 			with open(filename,'ab+') as f:
 				currLink = self.get_link(link.get('href'), pubHouse)
-				textDiff = self.compare_text(currLink, allLines)
+				textDiff = self.compare_text(currLink.rstrip(), allLines)
 
-				if 'issuelist.txt' in filename:
-					if currLink.lower().startswith('http') or doi:
+				if pubHouse in currLink:
+					if 'issuelist.txt' in filename:
+						if currLink.lower().startswith('http') or doi:
+							if not(any(word in currLink.lower() for word in stopwords)):
+								if textDiff == True:
+									if re.findall('issue', link.get('href').lower()):
+										if re.findall('issue', link.getText().lower()):
+											f.write('%s\n' %currLink)
+										else:
+											issuelist.append(currLink)
+									else:
+										links.append(currLink)
+
+					elif 'seedlist.txt' in filename:
+						if currLink.lower().startswith('http') or doi:	
+							if not(any(word in currLink.lower() for word in stopwords)):
+								if 'abs' in currLink.lower():
+									f.write('%s\n' %currLink)
+									seeds.append(currLink)
+								elif 'full' in currLink.lower():
+									if textDiff == True:
+										f.write('%s\n' %currLink)
+										seeds.append(currLink)						
+
+					else:
 						if not(any(word in currLink.lower() for word in stopwords)):
 							if textDiff == True:
 								f.write('%s\n' %currLink)
 
-							self.iterative_issues(soup, allLines, f, pubHouse)
-
-
-				elif 'seedList.txt' in filename:
-					if currLink.lower().startswith('http') or doi:	
-						if not(any(word in currLink.lower() for word in stopwords)):
-							if 'abs' in currLink.lower():
-								f.write('%s\n' %currLink)
-							elif 'full' in currLink.lower():
-								if textDiff == True:
-									f.write('%s\n' %currLink)
-							
-							self.iterative_issues(soup, allLines, f, pubHouse)
+		# recursion for finding issuelist if necessary
+		if 'issuelist.txt' in filename:
+			with open(filename,'ab+') as f:
+				if len(issuelist) == 0:
+					for i in links:
+						f.write('%s\n' %i)
+					links = []
+					return 
 				else:
-					if not(any(word in currLink.lower() for word in stopwords)):
-						if textDiff == True:
-							f.write('%s\n' %currLink)
-							self.iterative_issues(soup, allLines, f, pubHouse)
+					with open('issuelistTmp.txt', 'ab+') as t:
+						t.write('%s\n' %issuelist[0])
+					soup = self.get_page_soup(issuelist[0])
+					self.get_list(soup, issuelist[0].rstrip(), filename, pubHouse)
 
-	def iterative_issues(self, soup, issuelist, f, pubHouse):
-		''' keeps diving down on issues pages until article page is reached'''
-		issues = []
-		allIssuesList = []
-		allIssuesList = issuelist 
-		issues = issuelist
+		#try selenium to access the page
+		if 'seedlist.txt' in filename:
+			if len(seeds) == 0:
+				soup = self.get_page_soup(soupURL, selenium=True)
+				for link in soup.find_all('a', href=True):
+					doi = self.link_has_doi(link.get('href'))
+					currLink = self.get_link(link.get('href'), pubHouse)
+					textDiff = self.compare_text(currLink.strip(), allLines)
+					with open(filename,'ab+') as f:
+						if currLink.lower().startswith('http') or doi:	
+							if not(any(word in currLink.lower() for word in stopwords)):
+								if textDiff == True:
+									if 'abs' in currLink.lower():
+										f.write('%s\n' %currLink)
+										allLines.append(currLink)
+									elif 'full' in currLink.lower():
+										if textDiff == True:
+											f.write('%s\n' %currLink)
+											allLines.append(currLink)
 
-		volumes = soup.find_all(class_=re.compile("olumes")) #add the all issues option here?
-		if volumes:
-			for v in volumes:
-				links = v.findAll('a')
-				for a in links:
-					if a.get('href'):
-						currLink = self.get_link(a.get('href'),pubHouse)
-						textDiff = self.compare_text(currLink, allIssuesList)
-						if textDiff == True:
-							f.write('%s\n' %currLink)
-							issues.append(currLink)
-							allIssuesList.append(currLink)
-						else:
-							textDiff = self.compare_text(currLink, issues)
-										
 			
 	def get_link (self, link, pubHouse):
 		''' utility function for generating an absolute link if necessary '''
@@ -198,6 +277,7 @@ class scored(object):
 				return pubHouse+link
 		else:
 			return link
+
 
 	def link_has_doi (self, link):
 		''' utility function to check if a link is a doi link '''
@@ -208,6 +288,7 @@ class scored(object):
 				return True
 			else:
 				return False
+
 
 	def is_number(self,s):
 		''' utility function to check if a string is a decimal number'''
@@ -227,7 +308,10 @@ class scored(object):
 		textDiff = ''
 		diffList = []
 
-		if urlList == [] or len(urlList) < 2:
+		if self.url == url or self.url+'/' == url:
+			return False
+
+		elif urlList == [] or len(urlList) < 2:
 			return True
 
 		elif filter(lambda x: url in x, urlList):
@@ -245,19 +329,7 @@ class scored(object):
 				if diff == None or ('abs' in diff.lower() and len(diff) <= 9):
 					return False
 				
-
 		return True
-
-	
-	def get_articles_list(self, page, issuelist=None):
-		''' generate the journals lists from the issues list '''
-		
-		soup = self.get_page_soup(page)
-		fname = 'seedList.txt'
-		issues = []
-		again = True
-		pubHouse = 'http://'+page.split('http://')[1].split('/')[0]
-		self.get_issues_list(soup,fname, pubHouse)
 
 
 	def get_meta_data(self, soup):
@@ -421,11 +493,15 @@ def main():
 
 	ametsocURL = 'http://journals.ametsoc.org'
 	aguURL = 'http://agupubs.onlinelibrary.wiley.com/agu'
-	#journals = scored(ametsocURL, 0, 'xpathTest.txt')
-	journals = scored(ametsocURL, 1, 'journalListing')
-	#journals.info_from_ams() 
-	#journals = scrapeAMSJournal(aguURL)
-	#journals.info_from_agu() 
+	# journals = scored(ametsocURL, 0, '/Users/kwhitehall/Documents/githubRepos/scored/xpathTest.txt')
+	# journals.get_journal_list()
+	# journals.get_issues_list('journalsAMS.txt')
+	
+	journals = scored(aguURL, 2, "//div[@class='content-area']/div/div/div/ul/li")
+	# # journals.get_journal_list() 
+	# journals.get_issues_list('journalsAGU.txt')
+	journals.get_articles_list()
+
 
 if __name__ == '__main__':
     main()
