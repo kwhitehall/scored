@@ -3,24 +3,26 @@ from bs4 import BeautifulSoup, SoupStrainer
 import time, sys, os, difflib, fileinput, re, urllib2, cookielib, json, multiprocessing
 
 
-# if os.path.exists(os.getcwd()+'/journals.txt'):
-# 	os.remove(os.getcwd()+'/journals.txt')
-# if os.path.exists(os.getcwd()+'/issuelist.txt'):
-# 	os.remove(os.getcwd()+'/issuelist.txt')
+if os.path.exists(os.getcwd()+'/scored.log'):
+	os.remove(os.getcwd()+'/scored.log')
+if os.path.exists(os.getcwd()+'/journals.txt'):
+	os.remove(os.getcwd()+'/journals.txt')
+if os.path.exists(os.getcwd()+'/issuelist.txt'):
+	os.remove(os.getcwd()+'/issuelist.txt')
 if os.path.exists(os.getcwd()+'/seedlist.txt'):
 	os.remove(os.getcwd()+'/seedlist.txt')
 
-'''Purpose: To create seedlist of journal issues and extract article page metadata from
-			AMS and other journal websites 
-	Inputs: Instantiate with URL of website, 0 or 1 (indicating xpath or classtag) and file of xpaths
-			or class tag string
+'''Purpose: To create seedlist of journal issues and extract article page metadata from journal sites 
+	Inputs: URL of website
+			num - 0, 1, 2 (indicating file with xpaths, classtag or xpath) 
+			input1 - location of file of xpaths if num ==0; class tag string if num == 1; xpath tag string
+					  if num ==2
 '''
 
 class scored(object):
 	def __init__(self, url, num, input1):
 		self.driver = webdriver.PhantomJS()
 		self.driver.set_window_size(1024, 768)
-		# self.driver.get(url)
 		self.cj = cookielib.CookieJar()
 		self.opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.cj))
 		self.xpages = 10
@@ -30,12 +32,13 @@ class scored(object):
 		self.num = num
 		self.input1 = input1
 
+	def tear_down(self):
+		self.driver.quit()
+		return True
 
 	def get_journal_list(self):
-		# journalDriver = webdriver.PhantomJS()
-		# journalDriver.get(self.url)
 		self.driver.get(self.url)
-		fname = "journals.txt"
+		fname = 'journals.txt'
 		
 		with open(fname, 'ab+') as f:
 			if self.num == 0:
@@ -43,7 +46,7 @@ class scored(object):
 					self.f.write('Name of file: %s\n' %self.input1 )
 					xpathList = [line.strip() for line in open(self.input1)]
 					for xpath in xpathList:
-						xpathElement = journalDriver.find_element_by_xpath(xpath)
+						xpathElement = self.driver.find_element_by_xpath(xpath)
 						self.f.write('xpath: %s\n' %xpathElement.get_attribute('href'))
 						f.write('%s\n' %xpathElement.get_attribute('href'))
 				except:
@@ -51,7 +54,7 @@ class scored(object):
 
 			elif self.num == 1:
 				try:
-					classTagArray = journalDriver.find_elements_by_class_name(self.input1)
+					classTagArray = self.driver.find_elements_by_class_name(self.input1)
 					self.f.write('Using %s as class tag \n' %self.input1)
 					for classTag in classTagArray:
 						self.f.write('class: %s\n' %classTag.find_element_by_tag_name('a').get_attribute('href'))
@@ -73,9 +76,9 @@ class scored(object):
 					print 'The xpath provided, ' + self.input1 + 'is not valid for the input site provided'
 			
 			else:
-				print "Please enter a legal input"
+				print 'Please enter a legal input'
 
-		self.driver.close()
+		self.tear_down()
 
 
 	def get_issues_list(self):
@@ -118,6 +121,7 @@ class scored(object):
 		if selenium:
 			self.driver.get(link)
 			time.sleep(5)
+			self.tear_down()
 			return self.driver.page_source
 		else:
 			try:
@@ -493,14 +497,11 @@ def main():
 
 	ametsocURL = 'http://journals.ametsoc.org'
 	aguURL = 'http://agupubs.onlinelibrary.wiley.com/agu'
-	# journals = scored(ametsocURL, 0, '/Users/kwhitehall/Documents/githubRepos/scored/xpathTest.txt')
-	# journals.get_journal_list()
-	# journals.get_issues_list('journalsAMS.txt')
-	
+	# journals = scored(ametsocURL, 0, 'xpathTest.txt')
 	journals = scored(aguURL, 2, "//div[@class='content-area']/div/div/div/ul/li")
-	# # journals.get_journal_list() 
-	# journals.get_issues_list('journalsAGU.txt')
-	journals.get_articles_list()
+	journals.get_journal_list() 
+	# journals.get_issues_list()
+	# journals.get_articles_list()
 
 
 if __name__ == '__main__':
