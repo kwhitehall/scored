@@ -2,7 +2,7 @@
 
 <img src="./docs/img/scored_logo.png" align="right" width="300" />
 
-README for using getAGUAbs.py - the AGU challenge put forth by Lewis
+README for using getAGUAbs.py 
 
 ## Purpose
 To access each journal on the AGU journal site and extract selected fields for each article in each issue. 
