@@ -486,7 +486,7 @@ class scored(object):
 			contentDict.update(metaDict)
 
 		if abstract:
-			filenameJSON = os.getcwd()+ '/jsonFilesAMS/'+ page.split('://')[1].replace('/','-').replace('.','-') +'.json'
+			filenameJSON = os.getcwd()+ '/jsonFiles/'+ page.split('://')[1].replace('/','-').replace('.','-') +'.json'
 			
 			with open(filenameJSON, 'w+') as f:
 				json.dump(contentDict, f)
