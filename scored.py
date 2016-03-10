@@ -165,7 +165,7 @@ class scored(object):
 					 'submit', 'contact', 'listserve', 'login', 'disclaim', 'editor', 'section', 'librarian', 'alert',\
 					 '#', 'email', '?', 'copyright', 'license', 'charges', 'terms', 'mailto:', 'submission', 'author',\
 					 'media', 'news', 'rss', 'mobile', 'help', 'award', 'meetings','job', 'access', 'privacy', 'features'\
-					 'information', 'search', 'page', 'book', 'aim']
+					 'information', 'search', 'book', 'aim']
 		currLink = ''
 		issues = []
 		issuelist = []
@@ -494,14 +494,9 @@ class scored(object):
 
 def main():
 	print 'Extracting Data from Journals...'
-
-	ametsocURL = 'http://journals.ametsoc.org'
-	aguURL = 'http://agupubs.onlinelibrary.wiley.com/agu'
-	# journals = scored(ametsocURL, 0, 'xpathTest.txt')
-	journals = scored(aguURL, 2, "//div[@class='content-area']/div/div/div/ul/li")
 	journals.get_journal_list() 
-	# journals.get_issues_list()
-	# journals.get_articles_list()
+	journals.get_issues_list()
+	journals.get_articles_list()
 
 
 if __name__ == '__main__':
