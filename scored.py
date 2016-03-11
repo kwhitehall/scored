@@ -91,6 +91,11 @@ class scored(object):
 		if os.path.exists(os.getcwd()+'/issuelist.txt'):
 			os.remove(os.getcwd()+'/issuelist.txt')
 
+		if not os.path.exists(os.getcwd()+'/journals.txt'):
+			self.f.write('No journals list available! \n')
+			print 'No journals list available! \n'
+			sys.exit(1)
+
 		fname = 'issuelist.txt'
 		jfname = 'journals.txt'
 
@@ -109,6 +114,11 @@ class scored(object):
 		
 		if os.path.exists(os.getcwd()+'/seedlist.txt'):
 			os.remove(os.getcwd()+'/seedlist.txt')
+
+		if not os.path.exists(os.getcwd()+'/issuelist.txt'):
+			self.f.write('No issuelist available! \n')
+			print 'No issuelist available! \n'
+			sys.exit(1)
 
 		fname = 'seedlist.txt'
 		iname = 'issuelist.txt'
