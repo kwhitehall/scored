@@ -1,16 +1,6 @@
 from selenium import webdriver
 from bs4 import BeautifulSoup, SoupStrainer
-import time, sys, os, difflib, fileinput, re, urllib2, cookielib, json, multiprocessing
-
-
-if os.path.exists(os.getcwd()+'/scored.log'):
-	os.remove(os.getcwd()+'/scored.log')
-if os.path.exists(os.getcwd()+'/journals.txt'):
-	os.remove(os.getcwd()+'/journals.txt')
-if os.path.exists(os.getcwd()+'/issuelist.txt'):
-	os.remove(os.getcwd()+'/issuelist.txt')
-if os.path.exists(os.getcwd()+'/seedlist.txt'):
-	os.remove(os.getcwd()+'/seedlist.txt')
+import time, sys, os, difflib, fileinput, re, urllib2, cookielib, json, multiprocessing, warnings
 
 '''Purpose: To create seedlist of journal issues and extract article page metadata from journal sites 
 	Inputs: URL of website
@@ -20,7 +10,10 @@ if os.path.exists(os.getcwd()+'/seedlist.txt'):
 '''
 
 class scored(object):
-	def __init__(self, url, num, input1):
+	def __init__(self, url, num, input1=None):
+		if os.path.exists(os.getcwd()+'/scored.log'):
+			os.remove(os.getcwd()+'/scored.log')
+
 		self.driver = webdriver.PhantomJS()
 		self.driver.set_window_size(1024, 768)
 		self.cj = cookielib.CookieJar()
@@ -31,12 +24,16 @@ class scored(object):
 		self.f = open(self.log,'ab+')
 		self.num = num
 		self.input1 = input1
+		warnings.filterwarnings("error")
 
 	def tear_down(self):
 		self.driver.quit()
 		return True
 
 	def get_journal_list(self):
+		if os.path.exists(os.getcwd()+'/journals.txt'):
+			os.remove(os.getcwd()+'/journals.txt')
+
 		self.driver.get(self.url)
 		fname = 'journals.txt'
 		
@@ -76,13 +73,23 @@ class scored(object):
 					print 'The xpath provided, ' + self.input1 + 'is not valid for the input site provided'
 			
 			else:
-				print 'Please enter a legal input'
+				soup = self.get_page_soup(self.url) 
+				print soup
+				try:
+					for link in soup.find_all('a'):
+						if 'homepage' in link.text.lower():
+							f.write('%s\n' %link.get('href'))
+				except:
+					print 'Cannot locate journals on this page!'
 
 		self.tear_down()
 
 
 	def get_issues_list(self):
 		''' get all issues '''
+
+		if os.path.exists(os.getcwd()+'/issuelist.txt'):
+			os.remove(os.getcwd()+'/issuelist.txt')
 
 		fname = 'issuelist.txt'
 		jfname = 'journals.txt'
@@ -100,6 +107,9 @@ class scored(object):
 	def get_articles_list(self):
 		''' generate the journals lists from the issues list '''
 		
+		if os.path.exists(os.getcwd()+'/seedlist.txt'):
+			os.remove(os.getcwd()+'/seedlist.txt')
+
 		fname = 'seedlist.txt'
 		iname = 'issuelist.txt'
 		issues = []
@@ -129,7 +139,7 @@ class scored(object):
 				response = self.opener.open(request)
 				time.sleep(5)
 				self.cj.clear()
-				return response.read()
+				return response.read()	
 			except:
 				print 'unable to reach link'
 			return False
@@ -149,11 +159,15 @@ class scored(object):
 				strainer = SoupStrainer(id=strain)
 				try:
 					return BeautifulSoup(html, parse_only=strainer)
+				except UserWarning:
+					return BeautifulSoup(html, "lxml", parse_only=strainer)
 				except:
 					return False
 			else:
 				try:
 					return BeautifulSoup(html)
+				except UserWarning:
+					return BeautifulSoup(html, "lxml")
 				except:
 					return False
 		
@@ -210,7 +224,7 @@ class scored(object):
 				currLink = self.get_link(link.get('href'), pubHouse)
 				textDiff = self.compare_text(currLink.rstrip(), allLines)
 
-				if pubHouse in currLink:
+				if pubHouse in currLink: #not this! cause this discredits pub houses that host others e.g. egu
 					if 'issuelist.txt' in filename:
 						if currLink.lower().startswith('http') or doi:
 							if not(any(word in currLink.lower() for word in stopwords)):
@@ -220,6 +234,8 @@ class scored(object):
 											f.write('%s\n' %currLink)
 										else:
 											issuelist.append(currLink)
+									elif 'articles' in link.text.lower():
+										f.write('%s\n' %currLink)
 									else:
 										links.append(currLink)
 
@@ -493,10 +509,12 @@ class scored(object):
 
 
 def main():
+	URLlink = 'http://www.egu.eu/publications/open-access-journals/'
+	journals = scored(URLlink,-1)
 	print 'Extracting Data from Journals...'
-	journals.get_journal_list() 
+	# journals.get_journal_list() 
 	journals.get_issues_list()
-	journals.get_articles_list()
+	# journals.get_articles_list()
 
 
 if __name__ == '__main__':
