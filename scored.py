@@ -26,7 +26,7 @@ class scored(object):
 		self.input1 = input1
 		warnings.filterwarnings("error")
 
-	def tear_down(self):
+	def _tear_down(self):
 		self.driver.quit()
 		return True
 
@@ -73,7 +73,7 @@ class scored(object):
 					print 'The xpath provided, ' + self.input1 + 'is not valid for the input site provided'
 			
 			else:
-				soup = self.get_page_soup(self.url) 
+				soup = self._get_page_soup(self.url) 
 				print soup
 				try:
 					for link in soup.find_all('a'):
@@ -82,7 +82,7 @@ class scored(object):
 				except:
 					print 'Cannot locate journals on this page!'
 
-		self.tear_down()
+		self._tear_down()
 
 
 	def get_issues_list(self):
@@ -105,8 +105,8 @@ class scored(object):
 			self.f.write('No journals.txt\n')
 			sys.exit()
 		for j in journals:
-			soup = self.get_page_soup(j)
-			self.get_list(soup, j, fname)
+			soup = self._get_page_soup(j)
+			self._get_list(soup, j, fname)
 
 
 	def get_articles_list(self):
@@ -132,16 +132,16 @@ class scored(object):
 			sys.exit()
 
 		for page in issues:
-			soup = self.get_page_soup(page)
-			self.get_list(soup, page, fname)
+			soup = self._get_page_soup(page)
+			self._get_list(soup, page, fname)
 
 
-	def get_html(self, link, selenium=None):
+	def _get_html(self, link, selenium=None):
 		''' reach html using urllib2 & cookies '''
 		if selenium:
 			self.driver.get(link)
 			time.sleep(5)
-			self.tear_down()
+			self._tear_down()
 			return self.driver.page_source
 		else:
 			try:
@@ -155,14 +155,14 @@ class scored(object):
 			return False
 
 
-	def get_page_soup(self, link, selenium = None, strain=None):
+	def _get_page_soup(self, link, selenium = None, strain=None):
 		''' return html using BS for a page '''
 		print 'in get_page_soup ', link
 
 		if selenium:
-			html = self.get_html(link, selenium=True)
+			html = self._get_html(link, selenium=True)
 		else:
-			html = self.get_html(link)
+			html = self._get_html(link)
 
 		if html:
 			if strain:
@@ -182,14 +182,14 @@ class scored(object):
 					return False
 		
 
-	def get_list(self, soup, soupURL, filename, pubHouse=None):
+	def _get_list(self, soup, soupURL, filename, pubHouse=None):
 		''' generate issuelist from all issues on a given page'''
 
 		stopwords = ['facebook', 'twitter', 'youtube', 'linkedin', 'membership', 'subscribe', 'subscription', 'blog',\
 					 'submit', 'contact', 'listserve', 'login', 'disclaim', 'editor', 'section', 'librarian', 'alert',\
 					 '#', 'email', '?', 'copyright', 'license', 'charges', 'terms', 'mailto:', 'submission', 'author',\
 					 'media', 'news', 'rss', 'mobile', 'help', 'award', 'meetings','job', 'access', 'privacy', 'features'\
-					 'information', 'search', 'book', 'aim']
+					 'information', 'search', 'book', 'aim', 'language', 'edition']
 		currLink = ''
 		issues = []
 		issuelist = []
@@ -214,7 +214,7 @@ class scored(object):
 			if not pubHouse:
 				pubHouse = 'http://'+self.url.split('http://')[1].split('/')[0]
 
-			doi = self.link_has_doi(link.get('href'))
+			doi = self._link_has_doi(link.get('href'))
 
 			try:
 				allLines = [line.rstrip() for line in open(filename)]
@@ -231,8 +231,8 @@ class scored(object):
 			allLines.append(soupURL)
 
 			with open(filename,'ab+') as f:
-				currLink = self.get_link(link.get('href'), pubHouse)
-				textDiff = self.compare_text(currLink.rstrip(), allLines)
+				currLink = self._get_link(link.get('href'), pubHouse)
+				textDiff = self._compare_text(currLink.rstrip(), allLines)
 
 				if pubHouse in currLink: #not this! cause this discredits pub houses that host others e.g. egu
 					if 'issuelist.txt' in filename:
@@ -276,17 +276,17 @@ class scored(object):
 				else:
 					with open('issuelistTmp.txt', 'ab+') as t:
 						t.write('%s\n' %issuelist[0])
-					soup = self.get_page_soup(issuelist[0])
-					self.get_list(soup, issuelist[0].rstrip(), filename, pubHouse)
+					soup = self._get_page_soup(issuelist[0])
+					self._get_list(soup, issuelist[0].rstrip(), filename, pubHouse)
 
 		#try selenium to access the page
 		if 'seedlist.txt' in filename:
 			if len(seeds) == 0:
-				soup = self.get_page_soup(soupURL, selenium=True)
+				soup = self._get_page_soup(soupURL, selenium=True)
 				for link in soup.find_all('a', href=True):
-					doi = self.link_has_doi(link.get('href'))
-					currLink = self.get_link(link.get('href'), pubHouse)
-					textDiff = self.compare_text(currLink.strip(), allLines)
+					doi = self._link_has_doi(link.get('href'))
+					currLink = self._get_link(link.get('href'), pubHouse)
+					textDiff = self._compare_text(currLink.strip(), allLines)
 					with open(filename,'ab+') as f:
 						if currLink.lower().startswith('http') or doi:	
 							if not(any(word in currLink.lower() for word in stopwords)):
@@ -300,7 +300,7 @@ class scored(object):
 											allLines.append(currLink)
 
 			
-	def get_link (self, link, pubHouse):
+	def _get_link (self, link, pubHouse):
 		''' utility function for generating an absolute link if necessary '''
 		if not link.lower().startswith('http'):
 			if pubHouse:
@@ -309,18 +309,18 @@ class scored(object):
 			return link
 
 
-	def link_has_doi (self, link):
+	def _link_has_doi (self, link):
 		''' utility function to check if a link is a doi link '''
 		if not link.lower().startswith('http'):
 			if 'doi/' in link:
 				return True
-			elif any([self.is_number(i) for i in link.split('/')]):
+			elif any([self._is_number(i) for i in link.split('/')]):
 				return True
 			else:
 				return False
 
 
-	def is_number(self,s):
+	def _is_number(self,s):
 		''' utility function to check if a string is a decimal number'''
 		try:
 			float(s)
@@ -332,7 +332,7 @@ class scored(object):
 			return False
 
 
-	def compare_text(self, url, urlList):
+	def _compare_text(self, url, urlList):
 		''' check for link in a urlList '''
 
 		textDiff = ''
@@ -362,7 +362,7 @@ class scored(object):
 		return True
 
 
-	def get_meta_data(self, soup):
+	def _get_meta_data(self, soup):
 		''' get page metadata using BS'''
 
 		metaDict = {}
@@ -453,8 +453,8 @@ class scored(object):
 		authors = []
 		affilations = []
 
-		soup = self.get_page_soup(page)
-		metaDict = self.get_meta_data(soup)
+		soup = self._get_page_soup(page)
+		metaDict = self._get_meta_data(soup)
 
 		print 'text from: ', page
 
@@ -523,8 +523,8 @@ def main():
 	journals = scored(URLlink,-1)
 	print 'Extracting Data from Journals...'
 	# journals.get_journal_list() 
-	journals.get_issues_list()
-	# journals.get_articles_list()
+	# journals.get_issues_list()
+	journals.get_articles_list()
 
 
 if __name__ == '__main__':
