@@ -1,7 +1,7 @@
 from selenium import webdriver
 from bs4 import BeautifulSoup, SoupStrainer
 from collections import Counter
-import time, sys, os, difflib, fileinput, re, urllib2, cookielib, json, multiprocessing, warnings
+import time, sys, os, difflib, fileinput, re, urllib2, cookielib, json, multiprocessing, warnings, random
 
 '''Purpose: To create seedlist of journal issues and extract article page metadata from journal sites 
 	Inputs: URL of website
@@ -29,11 +29,13 @@ class scored(object):
 					 'submit', 'contact', 'listserve', 'login', 'disclaim', 'editor', 'section', 'librarian', 'alert',\
 					 '#', 'email', '?', 'copyright', 'license', 'charges', 'terms', 'mailto:', 'submission', 'author',\
 					 'media', 'news', 'rss', 'mobile', 'help', 'award', 'meetings','job', 'access', 'privacy', 'features'\
-					 'information', 'search', 'book', 'aim', 'language', 'edition', 'discuss']
+					 'information', 'search', 'book', 'aim', 'language', 'edition', 'discuss', 'ethics', 'cited', 'review'\
+					 'metrics', 'highlight', 'about', 'imprint', 'peer_review', 'comment', 'pol', 'account']
+		
 		warnings.filterwarnings("error")
 
 	def _tear_down(self):
-		self.driver.quit()
+		self.driver.close() 
 		return True
 
 	def get_journal_list(self):
@@ -80,24 +82,20 @@ class scored(object):
 					print 'The xpath provided, ' + self.input1 + 'is not valid for the input site provided'
 			
 			else:
-				print 'in else'
 				soup = self._get_page_soup(self.url) 
-				# try:
-				for link in soup.find_all('a'):
-					# print link.get('href')
-					# if 'homepage' in link.text.lower():
-					# 	f.write('%s\n' %link.get('href'))
-					# else:
-					allTags.append(link.get('href'))
+				try:
+					for link in soup.find_all('a'):
+						if 'homepage' in link.text.lower():
+							f.write('%s\n' %link.get('href'))
+						else:
+							allTags.append(link.get('href'))
 
-				if allTags:
-					print 'allTags if'
-					#filter url options less than domain
-					# links = [x for x in self._isSimilar_urls(allTags) if len(x.split('/')) > 3]
-					for link in self._isSimilar_urls(allTags):#links:
-						f.write('%s\n' %link)
-				# except:
-				# 	print 'Cannot locate journals on this page!'
+					if allTags:
+						links = [x for x in self._isSimilar_urls(allTags) if len(x.split('/')) > 3]
+						for link in links: 
+							f.write('%s\n' %link)
+				except:
+					print 'Cannot locate journals on this page!'
 
 		self._tear_down()
 
@@ -107,6 +105,9 @@ class scored(object):
 
 		if os.path.exists(os.getcwd()+'/issuelist.txt'):
 			os.remove(os.getcwd()+'/issuelist.txt')
+
+		if os.path.exists(os.getcwd()+'/issuelistTmp.txt'):
+			os.remove(os.getcwd()+'/issuelistTmp.txt')
 
 		if not os.path.exists(os.getcwd()+'/journals.txt'):
 			self.f.write('No journals list available! \n')
@@ -118,6 +119,7 @@ class scored(object):
 
 		try:
 			journals = [line.rstrip() for line in open(jfname)]
+			random.shuffle(journals)
 		except: 
 			self.f.write('No journals.txt\n')
 			sys.exit()
@@ -139,11 +141,11 @@ class scored(object):
 
 		fname = 'seedlist.txt'
 		iname = 'issuelist.txt'
-		issues = []
 		again = True
 
 		try:
 			issues = [line.rstrip() for line in open(iname)]
+			random.shuffle(issues)
 		except: 
 			self.f.write('No issuelist.txt\n')
 			sys.exit()
@@ -155,12 +157,10 @@ class scored(object):
 
 	def _get_html(self, link, selenium=None):
 		''' reach html using urllib2 & cookies '''
-		if selenium:
-			self.driver.get(link)
-			time.sleep(5)
-			self._tear_down()
-			return self.driver.page_source
-		else:
+		print 'in _get_html ', link, selenium
+		self.f.write('in _get_html with %s and selenium= %s' %(link, selenium))
+
+		if not selenium:
 			try:
 				request = urllib2.Request(link)
 				response = self.opener.open(request)
@@ -169,13 +169,26 @@ class scored(object):
 				return response.read()	
 			except:
 				print 'unable to reach link'
+				self.f.write('unable to reach %s with urllib2' %link)
 			return False
+		else:
+			try:
+				sel = webdriver.PhantomJS() 
+				sel.get(link)
+				time.sleep(5)
+				html = sel.page_source
+				sel.close()
+				return html	
+			
+			except:
+				print 'unable to reach link with selenium'
+				self.f.write('unable to reach %s with selenium' %link)
+				return False
 
 
 	def _get_page_soup(self, link, selenium = None, strain=None):
 		''' return html using BS for a page '''
-		print 'in get_page_soup ', link
-
+		
 		if selenium:
 			html = self._get_html(link, selenium=True)
 		else:
@@ -209,6 +222,7 @@ class scored(object):
 		seeds = []
 		allTags = []
 		eachlink = ''
+		allLinks = []
 		
 		try:
 			journals = [line.rstrip() for line in open('journals.txt')]
@@ -229,6 +243,17 @@ class scored(object):
 
 			doi = self._link_has_doi(link.get('href'))
 
+			currLink = self._get_link(link.get('href'), pubHouse)
+
+			if len(currLink.split('/')) > 3:
+				allLinks.append(currLink)
+
+		allURLs = self._isSimilar_urls(allLinks)
+
+		allURLs = list(set(allURLs))
+		
+		for currLink in allURLs:
+
 			try:
 				allLines = [line.rstrip() for line in open(filename)]
 			except:
@@ -244,47 +269,49 @@ class scored(object):
 			allLines.append(soupURL)
 
 			with open(filename,'ab+') as f:
-				currLink = self._get_link(link.get('href'), pubHouse)
-				textDiff = self._compare_text(currLink.rstrip(), allLines)
-
-				if pubHouse in currLink: #not this! cause this discredits pub houses that host others e.g. egu
-				# can compound to check if the currlink url is similar to the home page url
-					if 'issuelist.txt' in filename:
-						if currLink.lower().startswith('http') or doi:
-							if not(any(word in currLink.lower() for word in self.stopwords)):
-								if textDiff == True:
-									if re.findall('issue', link.get('href').lower()):
-										if re.findall('issue', link.getText().lower()):
-											f.write('%s\n' %currLink)
-										else:
-											issuelist.append(currLink)
-									elif 'articles' in link.text.lower():
+				
+				if 'issuelist.txt' in filename:
+					if currLink.lower().startswith('http') or doi:
+						if not(any(word in currLink.lower() for word in self.stopwords)):
+							textDiff = self._compare_text(currLink.rstrip(), allLines)
+							if textDiff == True:
+								if re.findall('issue', currLink.lower()): 
+									if re.findall('issue', currLink.lower()): #.getText().lower()):
 										f.write('%s\n' %currLink)
 									else:
-										links.append(currLink)
-
-					elif 'seedlist.txt' in filename:
-						if currLink.lower().startswith('http') or doi:	
-							if not(any(word in currLink.lower() for word in self.stopwords)):
-								if 'abs' in currLink.lower():
+										issuelist.append(currLink)
+								elif 'articles' in currLink.lower():
 									f.write('%s\n' %currLink)
-									seeds.append(currLink)
-								elif 'full' in currLink.lower():
-									if textDiff == True:
-										f.write('%s\n' %currLink)
-										seeds.append(currLink)						
+								elif 'volumes' in currLink.lower():
+									issuelist.append(currLink)
+								else:
+									links.append(currLink)
 
-					else:
+				elif 'seedlist.txt' in filename:
+					if currLink.lower().startswith('http') or doi:	
 						if not(any(word in currLink.lower() for word in self.stopwords)):
-							if textDiff == True:
+							textDiff = self._compare_text(currLink.rstrip(), allLines)
+							if 'abs' in currLink.lower():
 								f.write('%s\n' %currLink)
+								seeds.append(currLink)
+							elif 'full' in currLink.lower():
+								if textDiff == True:
+									f.write('%s\n' %currLink)
+									seeds.append(currLink)						
+
+				else:
+					if not(any(word in currLink.lower() for word in self.stopwords)):
+						textDiff = self._compare_text(currLink.rstrip(), allLines)
+						if textDiff == True:
+							f.write('%s\n' %currLink)
 
 		# recursion for finding issuelist if necessary
 		if 'issuelist.txt' in filename:
 			with open(filename,'ab+') as f:
 				if len(issuelist) == 0:
 					for i in links:
-						f.write('%s\n' %i)
+						if not(any(word in i.lower() for word in self.stopwords)):
+							f.write('%s\n' %i)
 					links = []
 					return 
 				else:
@@ -355,8 +382,8 @@ class scored(object):
 		if self.url == url or self.url+'/' == url:
 			return False
 
-		elif urlList == [] or len(urlList) < 2:
-			return True
+		# elif urlList == [] or len(urlList) < 2:
+		# 	return True
 
 		elif filter(lambda x: url in x, urlList):
 			return False
@@ -374,51 +401,24 @@ class scored(object):
 					return False
 		return True
 
+
 	def _isSimilar_urls(self, urls):
-		''' compare url with those in list to determine similarity. Return true if similar, false otherwise'''
+		''' compare url with those in list to determine similarity.'''
+		print 'inside _isSimilar_urls'
+
 		similarURLs = []
 		
 		urlList = [x for x in urls if len(x.split('/')) > 3]
 		
 		counts = filter(lambda x: x[1]>1 ,Counter(map (lambda x : x.split('/')[2].split('.')[-1],urlList)).most_common())
-		# counts = filter(lambda x,y: x, Counter(map(lambda x: x.split('/')[2].split('.')[-1], urlList)))
-		
 		noHttp = [x for x in filter(lambda y: 'http' not in y[0],counts)]
 		unique = [x for x in filter(lambda y: '' in y[0],noHttp)]
 
-		for url in urlList:
-			if url.lower().split('/')[2].split('.')[-1] in unique[0][0].lower():
-				textDiff = self._compare_text(url, similarURLs)
-				if not(any(word in url.lower() for word in self.stopwords)):
-					if textDiff == True:
-						similarURLs.append(url)
-
-		# print similarURLs
-		# sys.exit()
-
-		# if counts == []:
-		# 	#filter by domain
-		# 	counts = filter(lambda x: x[1]>1, Counter(reduce(lambda x,y: x+y,map (lambda x : x.split("."),urlList))).most_common())
-		# 	noHttp = filter(lambda y: 'http' not in y[0],counts)
-		# 	unique = filter(lambda y: '' in y[0],noHttp)
-
-		# 	if len(unique) != 0:
-		# 		domain = unique[0][0].strip('/')
-		# 		for url in urlList:
-		# 			if domain.lower() in url.split('/')[2].lower():
-		# 				# f.write('%s\n' %url)
-		# 				similarURLs.append(url)
-		# else:
-		# 	counts = Counter(reduce(lambda x,y: x+y, map(lambda x: [x[1].split('/')[0]] if len(x) > 1 else [x[0].split('/')[0]], map (lambda x : x.split(self.url.split('.')[-1]),urlList))))
-		# 	print counts
-		# 	for url in urlList:
-		# 		print 'counts[0][0]: ', counts[0][0]
-		# 		if counts[0][0].lower() in url.lower():
-		# 			# f.write('%s\n' %url)
-		# 			similarURLs.append(url)
-
+		fil = filter(lambda x: x.lower().split('/')[2].split('.')[-1] in unique[0][0].lower(), urlList)
+		textDiffs = filter(lambda x: self._compare_text(x, fil) == False, fil)
+		similarURLs = filter(lambda x: not(any(word in x.lower() for word in self.stopwords)), textDiffs)
+		
 		return similarURLs
-
 
 	def _get_meta_data(self, soup):
 		''' get page metadata using BS'''
@@ -503,7 +503,22 @@ class scored(object):
 					'contentType':contentType}
 
 	
-	def get_full_text(self, page):
+	def get_full_text(self):
+		'''Driver script to extract data from page '''
+		allArticles = [line.rstrip() for line in open('seedList.txt')]		
+		jobs = []
+		for i in range(0, len(allArticles), self.xpages):
+			for j in range(i, i+self.xpages):
+				try:
+					p = multiprocessing.Process(target=self._get_full_text(allArticles[j]), args=(allArticles[j],))
+					jobs.append(p)
+					p.start()
+				except:
+					print 'finished'
+					jobs = []
+
+
+	def _get_full_text(self, page):
 		''' Extract the data from a page '''
 		metaDict = {}
 		contentDict = {}
@@ -516,14 +531,15 @@ class scored(object):
 
 		print 'text from: ', page
 
-		if not os.path.exists(os.getcwd()+'/jsonFilesAMS'):
-			os.makedirs(os.getcwd()+'/jsonFilesAMS')
+		if not os.path.exists(os.getcwd()+'/jsonFiles'):
+			os.makedirs(os.getcwd()+'/jsonFiles')
 
 		contentDict['id'] = page
 
 		try:
 			for i in soup.find_all(class_=re.compile("^abstr")):
-				abstract += i.find('p').text.encode('utf-8')
+				if i.find('p'):
+					abstract += i.text.encode('utf-8')
 		except:
 			print 'Abstract was not found on this page'
 
@@ -577,12 +593,13 @@ class scored(object):
 
 
 def main():
-	URLlink = 'http://www.egu.eu/publications/open-access-journals/'
-	journals = scored(URLlink,-1)
+	URLlink = 'http://journals.ametsoc.org' #'http://www.egu.eu/publications/open-access-journals/' #
+	journals = scored(URLlink,0, 'xpathTest.txt')#-1)
 	print 'Extracting Data from Journals...'
-	journals.get_journal_list() 
+	# journals.get_journal_list() 
 	# journals.get_issues_list()
 	# journals.get_articles_list()
+	journals.get_full_text()
 
 
 if __name__ == '__main__':
