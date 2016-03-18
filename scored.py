@@ -48,9 +48,9 @@ class scored(object):
 		self.stopwords = ['facebook', 'twitter', 'youtube', 'linkedin', 'membership', 'subscribe', 'subscription', 'blog',\
 					 'submit', 'contact', 'listserve', 'login', 'disclaim', 'editor', 'section', 'librarian', 'alert',\
 					 '#', 'email', '?', 'copyright', 'license', 'charges', 'terms', 'mailto:', 'submission', 'author',\
-					 'media', 'news', 'rss', 'mobile', 'help', 'award', 'meetings','job', 'access', 'privacy', 'features'\
-					 'information', 'search', 'book', 'aim', 'language', 'edition', 'discuss', 'ethics', 'cited', 'review'\
-					 'metrics', 'highlight', 'about', 'imprint', 'peer_review', 'comment', 'pol', 'account', '.xml', '.ris'\
+					 'media', 'news', 'rss', 'mobile', 'help', 'award', 'meetings','job', 'access', 'privacy', 'features',\
+					 'information', 'search', 'book', 'aim', 'language', 'edition', 'discuss', 'ethics', 'cited', 'review',\
+					 'metrics', 'highlight', 'about', 'imprint', 'peer_review', 'comment', 'pol', 'account', '.xml', '.ris',\
 					 '.bib']
 		
 		warnings.filterwarnings("error")
@@ -592,7 +592,7 @@ class scored(object):
 	def _find_common_patterns(self, s1, s2): 
 		''' This function and _longest_common_substring were adapted from 
 		http://codereview.stackexchange.com/questions/21532/python-3-finding-common-patterns-in-pairs-of-strings'''
-		
+
 	    if s1 == '' or s2 == '':
 	        return [], []
 	    com = self._longest_common_substring(s1, s2)
