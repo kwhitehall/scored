@@ -1,6 +1,6 @@
 from selenium import webdriver
 from bs4 import BeautifulSoup, SoupStrainer
-import time, sys, os, difflib, fileinput, re, urllib2, cookielib, json, multiprocessing
+import time, sys, os, difflib, fileinput, re, urllib2, cookielib, json, multiprocessing, random
 
 
 if os.path.exists(os.getcwd()+'/scored.log'):
@@ -31,6 +31,7 @@ class scored(object):
 		self.f = open(self.log,'ab+')
 		self.num = num
 		self.input1 = input1
+		self.initializeRNG()
 
 	def tear_down(self):
 		self.driver.quit()
@@ -120,14 +121,14 @@ class scored(object):
 		''' reach html using urllib2 & cookies '''
 		if selenium:
 			self.driver.get(link)
-			time.sleep(5)
+			time.sleep(self.getRandomTime())
 			self.tear_down()
 			return self.driver.page_source
 		else:
 			try:
 				request = urllib2.Request(link)
 				response = self.opener.open(request)
-				time.sleep(5)
+				time.sleep(self.getRandomTime())
 				self.cj.clear()
 				return response.read()
 			except:
@@ -335,6 +336,13 @@ class scored(object):
 				
 		return True
 
+	def initializeRNG(self):
+		'''Seeds the random number generator with current system time '''
+		random.seed()
+
+	def getRandomTime(self):
+		'''returns a random time between 5.0s and 30.0s'''
+		return random.uniform(5.0, 30.0)
 
 	def get_meta_data(self, soup):
 		''' get page metadata using BS'''
@@ -490,7 +498,6 @@ class scored(object):
 			
 			with open(filenameJSON, 'w+') as f:
 				json.dump(contentDict, f)
-
 
 def main():
 	print 'Extracting Data from Journals...'
