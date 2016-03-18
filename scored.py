@@ -30,7 +30,8 @@ class scored(object):
 					 '#', 'email', '?', 'copyright', 'license', 'charges', 'terms', 'mailto:', 'submission', 'author',\
 					 'media', 'news', 'rss', 'mobile', 'help', 'award', 'meetings','job', 'access', 'privacy', 'features'\
 					 'information', 'search', 'book', 'aim', 'language', 'edition', 'discuss', 'ethics', 'cited', 'review'\
-					 'metrics', 'highlight', 'about', 'imprint', 'peer_review', 'comment', 'pol', 'account']
+					 'metrics', 'highlight', 'about', 'imprint', 'peer_review', 'comment', 'pol', 'account', '.xml', '.ris'\
+					 '.bib']
 		
 		warnings.filterwarnings("error")
 
@@ -116,6 +117,8 @@ class scored(object):
 
 		fname = 'issuelist.txt'
 		jfname = 'journals.txt'
+		useSel = False
+		sel = []
 
 		try:
 			journals = [line.rstrip() for line in open(jfname)]
@@ -123,9 +126,33 @@ class scored(object):
 		except: 
 			self.f.write('No journals.txt\n')
 			sys.exit()
-		for j in journals:
-			soup = self._get_page_soup(j)
-			self._get_list(soup, j, fname)
+		# for j in journals:
+		# 	soup = self._get_page_soup(j)
+		# 	_ = self._get_list(soup, j, fname)
+		for page in journals:
+			if len(sel) > 1:
+				# check for page similarity to the selenium pages
+				# if similiar to any page in there, _get_page_soup with selenium
+				for i in sel:
+					curr = self._find_common_patterns(page, i)
+					if len(curr[0]) == len(curr[1]):
+						print 'using selenium'
+						self.f.write('using selenium to access %s\n' %page)
+						useSel = True
+						soup = self._get_page_soup(page, selenium=True)
+						s = self._get_list(soup, page, fname)
+						if s != [] : sel.append(s) 
+						break
+				if useSel == False:
+					soup = self._get_page_soup(page)
+					s = self._get_list(soup, page, fname)
+					if s != [] or s != None: sel.append(s)
+			else:
+				soup = self._get_page_soup(page)
+				s = self._get_list(soup, page, fname)
+				if s != [] or s != None: sel.append(s)
+
+			useSel = False
 
 
 	def get_articles_list(self):
@@ -141,8 +168,9 @@ class scored(object):
 
 		fname = 'seedlist.txt'
 		iname = 'issuelist.txt'
-		again = True
-
+		useSel = False
+		sel = []
+		
 		try:
 			issues = [line.rstrip() for line in open(iname)]
 			random.shuffle(issues)
@@ -151,8 +179,55 @@ class scored(object):
 			sys.exit()
 
 		for page in issues:
-			soup = self._get_page_soup(page)
-			self._get_list(soup, page, fname)
+			if len(sel) > 1:
+				# check for page similarity to the selenium pages
+				# if similiar to any page in there, _get_page_soup with selenium
+				for i in sel:
+					curr = self._find_common_patterns(page, i)
+					if len(curr[0]) == len(curr[1]):
+						print 'using selenium'
+						self.f.write('using selenium to access %s\n' %page)
+						useSel = True
+						soup = self._get_page_soup(page, selenium=True)
+						s = self._get_list(soup, page, fname)
+						if s != [] : sel.append(s) 
+						break
+				if useSel == False:
+					soup = self._get_page_soup(page)
+					s = self._get_list(soup, page, fname)
+					if s != []: sel.append(s)
+			else:
+				soup = self._get_page_soup(page)
+				s = self._get_list(soup, page, fname)
+				if s != []: sel.append(s)
+
+			useSel = False
+
+	def get_full_text(self):
+		'''Driver script to extract data from page '''
+		allArticles = [line.rstrip() for line in open('seedlist.txt')]		
+		jobs = []
+		random.shuffle(allArticles)
+		if len(allArticles) < self.xpages:
+			step = 2
+		else:
+			step = self.xpages
+		for i in range(0, len(allArticles), step):
+			for j in range(i, i+step):
+				try:
+					p = multiprocessing.Process(target=self._extract_full_text(allArticles[j]), args=(allArticles[j],))
+					jobs.append(p)
+					p.start()
+				except:
+					jobs = []
+
+
+	def get_all(self):
+		''' Run the full program '''
+		self.get_journal_list() 
+		self.get_issues_list()
+		self.get_articles_list()
+		self.get_full_text()
 
 
 	def _get_html(self, link, selenium=None):
@@ -223,6 +298,8 @@ class scored(object):
 		allTags = []
 		eachlink = ''
 		allLinks = []
+		seleniumList = []
+		counts = []
 		
 		try:
 			journals = [line.rstrip() for line in open('journals.txt')]
@@ -236,7 +313,7 @@ class scored(object):
 			except:
 				issues = []
 				self.f.write('No issuelist.txt to compare urls against. \n')
-		
+		 
 		for link in soup.find_all('a', href=True):
 			if not pubHouse:
 				pubHouse = 'http://'+self.url.split('http://')[1].split('/')[0]
@@ -251,7 +328,26 @@ class scored(object):
 		allURLs = self._isSimilar_urls(allLinks)
 
 		allURLs = list(set(allURLs))
+
+		filter(None, allURLs)
+
+		for i in allURLs:
+			curr = self._find_common_patterns(allURLs[0], i)
+			if counts == []:
+				counts.append((len(curr[0]),1, curr[0][0][1]))
+			else:
+				loc = [counts.index(item) for item in counts if item[0] == len(curr[0])]
+				if loc:
+					total = counts[loc[0]][1] + 1
+					counts.pop(loc[0])
+					counts.append((len(curr[0]),total, curr[0][0][1]))
+				else:
+					counts.append((len(curr[0]),1, curr[0][0][1]))
+
+		topLen = sorted(counts, key=lambda x:x[1])[-1][0]
+		topCom = sorted(counts, key=lambda x:x[1])[-1][2]
 		
+
 		for currLink in allURLs:
 
 			try:
@@ -286,18 +382,30 @@ class scored(object):
 									issuelist.append(currLink)
 								else:
 									links.append(currLink)
+									seleniumList.append(currLink)
 
 				elif 'seedlist.txt' in filename:
 					if currLink.lower().startswith('http') or doi:	
 						if not(any(word in currLink.lower() for word in self.stopwords)):
 							textDiff = self._compare_text(currLink.rstrip(), allLines)
+							abstract = soup.find_all(class_=re.compile("^abstr"))
 							if 'abs' in currLink.lower():
 								f.write('%s\n' %currLink)
 								seeds.append(currLink)
 							elif 'full' in currLink.lower():
 								if textDiff == True:
 									f.write('%s\n' %currLink)
-									seeds.append(currLink)						
+									seeds.append(currLink)	
+							elif abstract != []:
+								for i in abstract:
+									if i.find('p') or i.find(class_=re.compile("abstr")):
+										f.write('%s\n' %currLink)
+										seeds.append(currLink)
+							elif topCom in currLink:
+								f.write('%s\n' %currLink)
+								seeds.append(currLink)
+							else: #else if not abstract on page:else:
+								seleniumList.append(currLink)
 
 				else:
 					if not(any(word in currLink.lower() for word in self.stopwords)):
@@ -315,30 +423,15 @@ class scored(object):
 					links = []
 					return 
 				else:
-					with open('issuelistTmp.txt', 'ab+') as t:
+					with open('issuelistTmp.txt', 'ab+'
+						) as t:
 						t.write('%s\n' %issuelist[0])
 					soup = self._get_page_soup(issuelist[0])
-					self._get_list(soup, issuelist[0].rstrip(), filename, pubHouse)
+					_ = self._get_list(soup, issuelist[0].rstrip(), filename, pubHouse)
 
-		#try selenium to access the page
-		if 'seedlist.txt' in filename:
-			if len(seeds) == 0:
-				soup = self._get_page_soup(soupURL, selenium=True)
-				for link in soup.find_all('a', href=True):
-					doi = self._link_has_doi(link.get('href'))
-					currLink = self._get_link(link.get('href'), pubHouse)
-					textDiff = self._compare_text(currLink.strip(), allLines)
-					with open(filename,'ab+') as f:
-						if currLink.lower().startswith('http') or doi:	
-							if not(any(word in currLink.lower() for word in self.stopwords)):
-								if textDiff == True:
-									if 'abs' in currLink.lower():
-										f.write('%s\n' %currLink)
-										allLines.append(currLink)
-									elif 'full' in currLink.lower():
-										if textDiff == True:
-											f.write('%s\n' %currLink)
-											allLines.append(currLink)
+		filter(None, seleniumList)
+		return seleniumList
+
 
 			
 	def _get_link (self, link, pubHouse):
@@ -382,9 +475,6 @@ class scored(object):
 		if self.url == url or self.url+'/' == url:
 			return False
 
-		# elif urlList == [] or len(urlList) < 2:
-		# 	return True
-
 		elif filter(lambda x: url in x, urlList):
 			return False
 
@@ -404,8 +494,7 @@ class scored(object):
 
 	def _isSimilar_urls(self, urls):
 		''' compare url with those in list to determine similarity.'''
-		print 'inside _isSimilar_urls'
-
+		
 		similarURLs = []
 		
 		urlList = [x for x in urls if len(x.split('/')) > 3]
@@ -419,6 +508,33 @@ class scored(object):
 		similarURLs = filter(lambda x: not(any(word in x.lower() for word in self.stopwords)), textDiffs)
 		
 		return similarURLs
+
+	def _find_common_patterns(self, s1, s2): 
+	    if s1 == '' or s2 == '':
+	        return [], []
+	    com = self._longest_common_substring(s1, s2)
+	    if len(com) < 2:
+	        return ([(0, s1)], [(0, s2)])
+	    s1Bef, _, s1Aft = s1.partition(com)
+	    s2Bef, _, s2Aft = s2.partition(com)
+	    before = self._find_common_patterns(s1Bef, s2Bef)
+	    after = self._find_common_patterns(s1Aft, s2Aft)
+	    return (before[0] + [(1, com)] + after[0], before[1] + [(1, com)] + after[1])
+
+
+	def _longest_common_substring(self, s1, s2):
+	    M = [[0]*(1+len(s2)) for i in range(1+len(s1))]
+	    longest, xlongest = 0, 0
+	    for x in range(1,1 +len(s1)):
+	        for y in range(1, 1+len(s2)):
+	            if s1[x-1] == s2[y-1]:
+	                M[x][y] = M[x-1][y-1] + 1
+	                if M[x][y] > longest:
+	                    longest = M[x][y]
+	                    xlongest  = x
+	            else:
+	                M[x][y] = 0
+	    return s1[xlongest-longest: xlongest]
 
 	def _get_meta_data(self, soup):
 		''' get page metadata using BS'''
@@ -452,7 +568,7 @@ class scored(object):
 					fileType = tag.get('content')
 				
 				if 'subject' in tag.get('name').lower():
-					subjet.append(tag.get('content'))
+					subject.append(tag.get('content'))
 
 				if 'keyword' in tag.get('name').lower():
 					keywords.append(tag.get('content'))
@@ -461,7 +577,14 @@ class scored(object):
 					format = tag.get('content')
 
 				if 'title' in tag.get('name').lower():
-					title = tag.get('content')
+					try:
+						for t in tag.get('content'):
+							if 'citation_title' in t.lower():
+								title = t.get('content')
+							else:
+								title = t.get('content')
+					except:
+						continue
 
 				if 'source' in tag.get('name').lower():
 					source = tag.get('content')
@@ -488,6 +611,8 @@ class scored(object):
 							pubidentifier = tag.get('content')
 					except:
 						continue
+				if 'doi' in tag.get('name').lower():
+					doiidentifier = tag.get('content')
 
 		return {'metaAuthors':authors,
 					'date':pubdate,
@@ -502,23 +627,7 @@ class scored(object):
 					'rights':rights,
 					'contentType':contentType}
 
-	
-	def get_full_text(self):
-		'''Driver script to extract data from page '''
-		allArticles = [line.rstrip() for line in open('seedList.txt')]		
-		jobs = []
-		for i in range(0, len(allArticles), self.xpages):
-			for j in range(i, i+self.xpages):
-				try:
-					p = multiprocessing.Process(target=self._get_full_text(allArticles[j]), args=(allArticles[j],))
-					jobs.append(p)
-					p.start()
-				except:
-					print 'finished'
-					jobs = []
-
-
-	def _get_full_text(self, page):
+	def _extract_full_text(self, page):
 		''' Extract the data from a page '''
 		metaDict = {}
 		contentDict = {}
@@ -530,6 +639,7 @@ class scored(object):
 		metaDict = self._get_meta_data(soup)
 
 		print 'text from: ', page
+		self.f.write('Acquiring text from %s\n' %page)
 
 		if not os.path.exists(os.getcwd()+'/jsonFiles'):
 			os.makedirs(os.getcwd()+'/jsonFiles')
@@ -538,16 +648,28 @@ class scored(object):
 
 		try:
 			for i in soup.find_all(class_=re.compile("^abstr")):
-				if i.find('p'):
+				if i.find('p') or i.find(class_=re.compile("abstr")):
 					abstract += i.text.encode('utf-8')
 		except:
 			print 'Abstract was not found on this page'
+			self.f.write('Abstract was not found on this page\n')
 
 		try:
 			title = soup.find_all(class_=re.compile("itle"))
-			contentDict['title'] = title.text.encode('utf-8')
+			try:
+				if title.text.encode('utf-8'):
+					t = title.text.encode('utf-8')
+			except:
+				for ti in title:
+					if ti.find('p') or ti.find(class_=re.compile("pub")):
+						t = ti.text.encode('utf-8')
+					elif 'article_title' in str(ti):
+						t = (str(ti).split('</span>')[0].split("article_title")[-1]).encode('utf-8')
+
+			contentDict['title'] = t.strip()
 		except:
 			print 'Title was not found on this page'
+			self.f.write('Title was not found on this page')
 			contentDict['title'] = 'Null'
 
 		try:
@@ -555,13 +677,24 @@ class scored(object):
 			contentDict['acknowledgement'] = ack.text.encode('utf-8')
 		except:
 			print 'Acknowledgements not found on this page'
+			self.f.write('Acknowledgements not found on this page\n')
 			contentDict['acknowledgement'] = 'Null'
 
 		try:
 			for x in soup.find_all(class_=re.compile("uthor")):
 				try:
-					for k in x.find_all('strong'):
-						authors.append(k.text.encode('utf-8'))
+					if x.find_all('strong'):
+						for k in x.find_all('strong'):
+							authors.append(k.text.encode('utf-8'))
+					elif x.find_all("a", class_=re.compile("uthor")):
+						for k in x.find_all("a",class_=re.compile("uthor")):
+							if not(any('search' in k.text.encode('utf-8').lower())):
+								authors.append(k.text.encode('utf-8'))
+							for i in k:
+								try:
+									affilations.append(i.text.encode('utf-8').split('ffiliations')[-1])
+								except:
+									continue
 				except:
 					continue
 				try:
@@ -576,7 +709,16 @@ class scored(object):
 					continue
 		except:
 			print 'Citation Authors info not found on this page'
+			self.f.write('Citation Authors info not found on this page\n')
 			contentDict['citation_authors'] = 'Null'
+
+		try:
+			for x in soup.find_all(class_=re.compile("corres")):
+				contentDict['corresponding_author'] = x.text.encode('utf-8').strip()
+		except:
+			print 'Corresponding Author info not found on this page'
+			self.f.write('Corresponding Author info not found on this page\n')
+			contentDict['corresponding_author'] = 'Null'
 
 		contentDict['abstract'] = abstract
 		contentDict['citation_authors'] = authors
