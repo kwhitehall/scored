@@ -753,7 +753,6 @@ class scored(object):
 						t = ti.text.encode('utf-8')
 					elif 'article_title' in str(ti):
 						t = (str(ti).split('</span>')[0].split("article_title")[-1]).encode('utf-8')
-
 			contentDict['title'] = t.strip()
 		except:
 			print 'Title was not found on this page'
