@@ -1,7 +1,20 @@
-from selenium import webdriver
-from bs4 import BeautifulSoup, SoupStrainer
-from collections import Counter
-import time, sys, os, difflib, fileinput, re, urllib2, cookielib, json, multiprocessing, random, warnings
+#!/usr/bin/env python2.7
+# encoding: utf-8
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 
 '''Purpose: To create seedlist of journal issues and extract article page metadata from journal sites 
 	Inputs: URL of website
@@ -9,6 +22,13 @@ import time, sys, os, difflib, fileinput, re, urllib2, cookielib, json, multipro
 			input1 - location of file of xpaths if num ==0; class tag string if num == 1; xpath tag string
 					  if num ==2
 '''
+
+from selenium import webdriver
+from bs4 import BeautifulSoup, SoupStrainer
+from collections import Counter
+import time, sys, os, difflib, fileinput, re, urllib2, cookielib, json, multiprocessing, random, warnings
+
+
 
 class scored(object):
 	def __init__(self, url, num, input1=None):
@@ -802,15 +822,11 @@ class scored(object):
 				json.dump(contentDict, f)
 
 
-def main():
+if __name__ == '__main__':
 	URLlink = 'http://www.egu.eu/publications/open-access-journals/' 
 	journals = scored(URLlink,-1)
 	print 'Extracting Data from Journals...'
 	# journals.get_journal_list() 
-	journals.get_issues_list()
-	# journals.get_articles_list()
+	# journals.get_issues_list()
+	journals.get_articles_list()
 	# journals.get_full_text()
-
-
-if __name__ == '__main__':
-    main()
