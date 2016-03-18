@@ -35,9 +35,11 @@ class scored(object):
 		
 		warnings.filterwarnings("error")
 
+
 	def _tear_down(self):
 		self.driver.close() 
 		return True
+
 
 	def get_journal_list(self):
 		if os.path.exists(os.getcwd()+'/journals.txt'):
@@ -84,6 +86,10 @@ class scored(object):
 			
 			else:
 				soup = self._get_page_soup(self.url) 
+				if not soup:
+					self.f.write('soup not returned \n')
+					return False
+
 				try:
 					for link in soup.find_all('a'):
 						if 'homepage' in link.text.lower():
@@ -141,15 +147,24 @@ class scored(object):
 						self.f.write('using selenium to access %s\n' %page)
 						useSel = True
 						soup = self._get_page_soup(page, selenium=True)
+						if not soup:
+							self.f.write('soup not returned \n')
+							return False
 						s = self._get_list(soup, page, fname)
 						if s != [] : sel.append(s) 
 						break
 				if useSel == False:
 					soup = self._get_page_soup(page)
+					if not soup:
+						self.f.write('soup not returned \n')
+						return False
 					s = self._get_list(soup, page, fname)
 					if s != [] or s != None: sel.append(s)
 			else:
 				soup = self._get_page_soup(page)
+				if not soup:
+					self.f.write('soup not returned \n')
+					return False
 				s = self._get_list(soup, page, fname)
 				if s != [] or s != None: sel.append(s)
 
@@ -158,6 +173,7 @@ class scored(object):
 		self.f.write('Finished with get_issues_list\n')
 		print 'Finished with get_issues_list'
 		return True
+
 
 	def get_articles_list(self):
 		''' generate the journals lists from the issues list '''
@@ -193,15 +209,24 @@ class scored(object):
 						self.f.write('using selenium to access %s\n' %page)
 						useSel = True
 						soup = self._get_page_soup(page, selenium=True)
+						if not soup:
+							self.f.write('soup not returned \n')
+							return False
 						s = self._get_list(soup, page, fname)
 						if s != [] : sel.append(s) 
 						break
 				if useSel == False:
 					soup = self._get_page_soup(page)
+					if not soup:
+						self.f.write('soup not returned \n')
+						return False
 					s = self._get_list(soup, page, fname)
 					if s != []: sel.append(s)
 			else:
 				soup = self._get_page_soup(page)
+				if not soup:
+					self.f.write('soup not returned \n')
+					return False
 				s = self._get_list(soup, page, fname)
 				if s != []: sel.append(s)
 
@@ -210,6 +235,7 @@ class scored(object):
 		self.f.write('Finished with get_articles_list\n')
 		print 'Finished with get_articles_list'
 		return True
+
 
 	def get_full_text(self):
 		'''Driver script to extract data from page '''
@@ -251,7 +277,7 @@ class scored(object):
 
 
 	def _get_html(self, link, selenium=None):
-		''' reach html using urllib2 & cookies '''
+		''' reach html using urllib2 & cookies or selenium & PhantomJS'''
 
 		print 'in _get_html ', link, selenium
 		self.f.write('in _get_html with %s and selenium= %s' %(link, selenium))
@@ -271,7 +297,7 @@ class scored(object):
 			try:
 				sel = webdriver.PhantomJS() 
 				sel.get(link)
-				time.sleep(5)
+				time.sleep(self._get_random_time())
 				html = sel.page_source
 				sel.close()
 				return html	
@@ -306,6 +332,8 @@ class scored(object):
 					return BeautifulSoup(html, "lxml")
 				except:
 					return False
+		else:
+			return False
 		
 
 	def _get_list(self, soup, soupURL, filename, pubHouse=None):
@@ -448,6 +476,10 @@ class scored(object):
 						) as t:
 						t.write('%s\n' %issuelist[0])
 					soup = self._get_page_soup(issuelist[0])
+					if not soup:
+						self.f.write('soup not returned \n')
+						return False
+
 					_ = self._get_list(soup, issuelist[0].rstrip(), filename, pubHouse)
 
 		filter(None, seleniumList)
@@ -512,10 +544,12 @@ class scored(object):
 					return False
 		return True
 
+
 	def _get_random_time(self):
 		'''returns a random time between 5.0s and 30.0s'''
 		random.seed()
 		return random.uniform(5.0, 30.0)
+
 
 	def _isSimilar_urls(self, urls):
 		''' compare url with those in list to determine similarity.'''
@@ -533,6 +567,7 @@ class scored(object):
 		similarURLs = filter(lambda x: not(any(word in x.lower() for word in self.stopwords)), textDiffs)
 		
 		return similarURLs
+
 
 	def _find_common_patterns(self, s1, s2): 
 	    if s1 == '' or s2 == '':
@@ -560,6 +595,7 @@ class scored(object):
 	            else:
 	                M[x][y] = 0
 	    return s1[xlongest-longest: xlongest]
+
 
 	def _get_meta_data(self, soup):
 		''' get page metadata using BS'''
@@ -652,8 +688,11 @@ class scored(object):
 					'rights':rights,
 					'contentType':contentType}
 
+
 	def _extract_full_text(self, page):
 		''' Extract the data from a page '''
+		print 'text from: ', page
+		
 		metaDict = {}
 		contentDict = {}
 		abstract = ''
@@ -661,9 +700,13 @@ class scored(object):
 		affilations = []
 
 		soup = self._get_page_soup(page)
+
+		if not soup:
+			self.f.write('soup not returned \n')
+			return False
+
 		metaDict = self._get_meta_data(soup)
 
-		print 'text from: ', page
 		self.f.write('Acquiring text from %s\n' %page)
 
 		if not os.path.exists(os.getcwd()+'/jsonFiles'):
@@ -758,14 +801,15 @@ class scored(object):
 			with open(filenameJSON, 'w+') as f:
 				json.dump(contentDict, f)
 
+
 def main():
 	URLlink = 'http://www.egu.eu/publications/open-access-journals/' 
 	journals = scored(URLlink,-1)
 	print 'Extracting Data from Journals...'
 	# journals.get_journal_list() 
-	# journals.get_issues_list()
+	journals.get_issues_list()
 	# journals.get_articles_list()
-	journals.get_full_text()
+	# journals.get_full_text()
 
 
 if __name__ == '__main__':
