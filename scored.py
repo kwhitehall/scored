@@ -590,6 +590,9 @@ class scored(object):
 
 
 	def _find_common_patterns(self, s1, s2): 
+		''' This function and _longest_common_substring were adapted from 
+		http://codereview.stackexchange.com/questions/21532/python-3-finding-common-patterns-in-pairs-of-strings'''
+		
 	    if s1 == '' or s2 == '':
 	        return [], []
 	    com = self._longest_common_substring(s1, s2)
