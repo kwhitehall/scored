@@ -121,14 +121,14 @@ class scored(object):
 		''' reach html using urllib2 & cookies '''
 		if selenium:
 			self.driver.get(link)
-			time.sleep(self.getRandomTime())
+			time.sleep(self._get_random_time())
 			self.tear_down()
 			return self.driver.page_source
 		else:
 			try:
 				request = urllib2.Request(link)
 				response = self.opener.open(request)
-				time.sleep(self.getRandomTime())
+				time.sleep(self._get_random_time())
 				self.cj.clear()
 				return response.read()
 			except:
@@ -336,12 +336,9 @@ class scored(object):
 				
 		return True
 
-	def initializeRNG(self):
-		'''Seeds the random number generator with current system time '''
-		random.seed()
-
-	def getRandomTime(self):
+	def _get_random_time(self):
 		'''returns a random time between 5.0s and 30.0s'''
+		random.seed()
 		return random.uniform(5.0, 30.0)
 
 	def get_meta_data(self, soup):
