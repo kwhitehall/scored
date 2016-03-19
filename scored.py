@@ -32,8 +32,8 @@ import time, sys, os, difflib, fileinput, re, urllib2, cookielib, json, multipro
 
 class scored(object):
 	def __init__(self, url, num, input1=None):
-		if os.path.exists(os.getcwd()+'/scored.log'):
-			os.remove(os.getcwd()+'/scored.log')
+		if os.path.exists(os.getcwd() + self.storage +'/scored.log'):
+			os.remove(os.getcwd() + self.storage + '/scored.log')
 
 		self.driver = webdriver.PhantomJS()
 		self.driver.set_window_size(1024, 768)
@@ -839,6 +839,6 @@ if __name__ == '__main__':
 	journals = scored(URLlink,-1) #0, '/Users/kwhitehall/Documents/githubRepos/scored/xpathTest1.txt')#-1)
 	print 'Extracting Data from Journals...'
 	# journals.get_journal_list() 
-	journals.get_issues_list()
-	# journals.get_articles_list()
+	# journals.get_issues_list()
+	journals.get_articles_list()
 	# journals.get_full_text()
