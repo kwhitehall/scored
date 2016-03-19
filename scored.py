@@ -73,7 +73,7 @@ class scored(object):
 			os.remove(os.getcwd()  + self.storage + '/journals.txt')
 
 		self.driver.get(self.url)
-		fname = 'journals.txt'
+		fname = os.getcwd() + self.storage + '/journals.txt'
 		allTags = []
 		
 		with open(fname, 'ab+') as f:
@@ -83,6 +83,7 @@ class scored(object):
 					xpathList = [line.strip() for line in open(self.input1)]
 					for xpath in xpathList:
 						xpathElement = self.driver.find_element_by_xpath(xpath)
+						print 'here ', xpathElement
 						self.f.write('xpath: %s\n' %xpathElement.get_attribute('href'))
 						f.write('%s\n' %xpathElement.get_attribute('href'))
 				except:
@@ -127,6 +128,7 @@ class scored(object):
 					if allTags:
 						links = [x for x in self._isSimilar_urls(allTags) if len(x.split('/')) > 3]
 						for link in links: 
+							print link
 							f.write('%s\n' %link)
 				except:
 					print 'Cannot locate journals on this page!'
@@ -151,8 +153,8 @@ class scored(object):
 			print 'No journals list available! \n'
 			sys.exit(1)
 
-		fname = 'issuelist.txt'
-		jfname = 'journals.txt'
+		fname = os.getcwd() + self.storage + '/issuelist.txt'
+		jfname = os.getcwd() + self.storage + '/journals.txt'
 		useSel = False
 		sel = []
 
@@ -213,8 +215,8 @@ class scored(object):
 			print 'No issuelist available! \n'
 			sys.exit(1)
 
-		fname = 'seedlist.txt'
-		iname = 'issuelist.txt'
+		fname = os.getcwd() + self.storage + '/seedlist.txt'
+		iname = os.getcwd() + self.storage + '/issuelist.txt'
 		useSel = False
 		sel = []
 		
@@ -823,17 +825,17 @@ class scored(object):
 			contentDict.update(metaDict)
 
 		if abstract:
-			filenameJSON = os.getcwd()+ '/jsonFiles/'+ page.split('://')[1].replace('/','-').replace('.','-') +'.json'
+			filenameJSON = os.getcwd() + self.storage + '/jsonFiles/'+ page.split('://')[1].replace('/','-').replace('.','-') +'.json'
 			
 			with open(filenameJSON, 'w+') as f:
 				json.dump(contentDict, f)
 
 
 if __name__ == '__main__':
-	URLlink = 'http://www.egu.eu/publications/open-access-journals/' 
-	journals = scored(URLlink,-1)
+	URLlink = 'http://journals.ametsoc.org' #'http://www.egu.eu/publications/open-access-journals/' 
+	journals = scored(URLlink,-1) #0, '/Users/kwhitehall/Documents/githubRepos/scored/xpathTest1.txt')#-1)
 	print 'Extracting Data from Journals...'
-	# journals.get_journal_list() 
+	journals.get_journal_list() 
 	# journals.get_issues_list()
-	journals.get_articles_list()
+	# journals.get_articles_list()
 	# journals.get_full_text()
