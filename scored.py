@@ -598,17 +598,16 @@ class scored(object):
 	def _find_common_patterns(self, s1, s2): 
 		''' This function and _longest_common_substring were adapted from 
 		http://codereview.stackexchange.com/questions/21532/python-3-finding-common-patterns-in-pairs-of-strings'''
-
-	    if s1 == '' or s2 == '':
-	        return [], []
-	    com = self._longest_common_substring(s1, s2)
-	    if len(com) < 2:
-	        return ([(0, s1)], [(0, s2)])
-	    s1Bef, _, s1Aft = s1.partition(com)
-	    s2Bef, _, s2Aft = s2.partition(com)
-	    before = self._find_common_patterns(s1Bef, s2Bef)
-	    after = self._find_common_patterns(s1Aft, s2Aft)
-	    return (before[0] + [(1, com)] + after[0], before[1] + [(1, com)] + after[1])
+		if s1 == '' or s2 == '':
+			return [], []
+		com = self._longest_common_substring(s1, s2)
+		if len(com) < 2:
+			return ([(0, s1)], [(0, s2)])
+		s1Bef, _, s1Aft = s1.partition(com)
+		s2Bef, _, s2Aft = s2.partition(com)
+		before = self._find_common_patterns(s1Bef, s2Bef)
+		after = self._find_common_patterns(s1Aft, s2Aft)
+		return (before[0] + [(1, com)] + after[0], before[1] + [(1, com)] + after[1])
 
 
 	def _longest_common_substring(self, s1, s2):
