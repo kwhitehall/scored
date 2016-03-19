@@ -41,6 +41,13 @@ class scored(object):
 		self.opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.cj))
 		self.xpages = 10
 		self.url = url
+		self.storage = '/'+url.split('/')[2].replace('.','_')
+		if not os.path.exists(os.getcwd()+self.storage):
+			os.makedirs(os.getcwd()+self.storage)
+
+		if os.path.exists(os.getcwd() + self.storage + '/scored.log'):
+			os.remove(os.getcwd() + self.storage + '/scored.log')
+		
 		self.log = os.getcwd() + '/scored.log'
 		self.f = open(self.log,'ab+')
 		self.num = num
@@ -62,8 +69,8 @@ class scored(object):
 
 
 	def get_journal_list(self):
-		if os.path.exists(os.getcwd()+'/journals.txt'):
-			os.remove(os.getcwd()+'/journals.txt')
+		if os.path.exists(os.getcwd() + self.storage  + '/journals.txt'):
+			os.remove(os.getcwd()  + self.storage + '/journals.txt')
 
 		self.driver.get(self.url)
 		fname = 'journals.txt'
@@ -133,13 +140,13 @@ class scored(object):
 	def get_issues_list(self):
 		''' get all issues '''
 
-		if os.path.exists(os.getcwd()+'/issuelist.txt'):
-			os.remove(os.getcwd()+'/issuelist.txt')
+		if os.path.exists(os.getcwd() + self.storage + '/issuelist.txt'):
+			os.remove(os.getcwd() + self.storage + '/issuelist.txt')
 
-		if os.path.exists(os.getcwd()+'/issuelistTmp.txt'):
-			os.remove(os.getcwd()+'/issuelistTmp.txt')
+		if os.path.exists(os.getcwd() + self.storage + '/issuelistTmp.txt'):
+			os.remove(os.getcwd() + self.storage + '/issuelistTmp.txt')
 
-		if not os.path.exists(os.getcwd()+'/journals.txt'):
+		if not os.path.exists(os.getcwd() + self.storage + '/journals.txt'):
 			self.f.write('No journals list available! \n')
 			print 'No journals list available! \n'
 			sys.exit(1)
@@ -198,10 +205,10 @@ class scored(object):
 	def get_articles_list(self):
 		''' generate the journals lists from the issues list '''
 		
-		if os.path.exists(os.getcwd()+'/seedlist.txt'):
-			os.remove(os.getcwd()+'/seedlist.txt')
+		if os.path.exists(os.getcwd() + self.storage + '/seedlist.txt'):
+			os.remove(os.getcwd() + self.storage + '/seedlist.txt')
 
-		if not os.path.exists(os.getcwd()+'/issuelist.txt'):
+		if not os.path.exists(os.getcwd() + self.storage + '/issuelist.txt'):
 			self.f.write('No issuelist available! \n')
 			print 'No issuelist available! \n'
 			sys.exit(1)
@@ -259,7 +266,7 @@ class scored(object):
 
 	def get_full_text(self):
 		'''Driver script to extract data from page '''
-		allArticles = [line.rstrip() for line in open('seedlist.txt')]		
+		allArticles = [line.rstrip() for line in open( os.getcwd() + self.storage + '/seedlist.txt')]		
 		jobs = []
 		random.shuffle(allArticles)
 		if len(allArticles) < self.xpages:
@@ -371,14 +378,14 @@ class scored(object):
 		counts = []
 		
 		try:
-			journals = [line.rstrip() for line in open('journals.txt')]
+			journals = [line.rstrip() for line in open(os.getcwd() + self.storage + '/journals.txt')]
 		except:
 			journals = []
 			self.f.write('No journals.txt to compare urls against. \n')
 			
 		if 'seedlist.txt' in filename:
 			try:
-				issues = [line.rstrip() for line in open('issuelist.txt')]
+				issues = [line.rstrip() for line in open(os.getcwd() + self.storage + '/issuelist.txt')]
 			except:
 				issues = []
 				self.f.write('No issuelist.txt to compare urls against. \n')
@@ -425,7 +432,7 @@ class scored(object):
 				allLines = []
 			
 			try:
-				issuesTmp = [line.rstrip() for line in open('issuelistTmp.txt')]
+				issuesTmp = [line.rstrip() for line in open(os.getcwd() + self.storage + '/issuelistTmp.txt')]
 			except:
 				issuesTmp = []
 
@@ -492,8 +499,7 @@ class scored(object):
 					links = []
 					return 
 				else:
-					with open('issuelistTmp.txt', 'ab+'
-						) as t:
+					with open(os.getcwd() + self.storage + '/issuelistTmp.txt', 'ab+') as t:
 						t.write('%s\n' %issuelist[0])
 					soup = self._get_page_soup(issuelist[0])
 					if not soup:
