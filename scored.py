@@ -166,6 +166,8 @@ class scored(object):
 			sys.exit()
 		
 		for page in journals:
+			sel = filter(None, sel)
+
 			if len(sel) > 1:
 				# check for page similarity to the selenium pages
 				# if similiar to any page in there, _get_page_soup with selenium
@@ -180,7 +182,7 @@ class scored(object):
 							self.f.write('soup not returned \n')
 							return False
 						s = self._get_list(soup, page, fname)
-						if s != [] : sel.append(s) 
+						if s != [] or s != None: sel.append(s) 
 						break
 				if useSel == False:
 					soup = self._get_page_soup(page)
@@ -228,6 +230,7 @@ class scored(object):
 			sys.exit()
 
 		for page in issues:
+			sel = filter(None, sel)
 			if len(sel) > 1:
 				# check for page similarity to the selenium pages
 				# if similiar to any page in there, _get_page_soup with selenium
@@ -242,7 +245,7 @@ class scored(object):
 							self.f.write('soup not returned \n')
 							return False
 						s = self._get_list(soup, page, fname)
-						if s != [] : sel.append(s) 
+						if s != [] or s != None: sel.append(s) 
 						break
 				if useSel == False:
 					soup = self._get_page_soup(page)
@@ -250,14 +253,14 @@ class scored(object):
 						self.f.write('soup not returned \n')
 						return False
 					s = self._get_list(soup, page, fname)
-					if s != []: sel.append(s)
+					if s != [] or s != None: sel.append(s)
 			else:
 				soup = self._get_page_soup(page)
 				if not soup:
 					self.f.write('soup not returned \n')
 					return False
 				s = self._get_list(soup, page, fname)
-				if s != []: sel.append(s)
+				if s != [] or s != None: sel.append(s)
 
 			useSel = False
 
@@ -407,7 +410,7 @@ class scored(object):
 
 		allURLs = list(set(allURLs))
 
-		filter(None, allURLs)
+		allURLs = filter(None, allURLs)
 
 		for i in allURLs:
 			curr = self._find_common_patterns(allURLs[0], i)
@@ -835,7 +838,7 @@ if __name__ == '__main__':
 	URLlink = 'http://journals.ametsoc.org' #'http://www.egu.eu/publications/open-access-journals/' 
 	journals = scored(URLlink,-1) #0, '/Users/kwhitehall/Documents/githubRepos/scored/xpathTest1.txt')#-1)
 	print 'Extracting Data from Journals...'
-	journals.get_journal_list() 
-	# journals.get_issues_list()
+	# journals.get_journal_list() 
+	journals.get_issues_list()
 	# journals.get_articles_list()
 	# journals.get_full_text()
