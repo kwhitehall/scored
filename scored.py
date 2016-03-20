@@ -32,9 +32,7 @@ import time, sys, os, difflib, fileinput, re, urllib2, cookielib, json, multipro
 
 class scored(object):
 	def __init__(self, url, num, input1=None):
-		if os.path.exists(os.getcwd() + self.storage +'/scored.log'):
-			os.remove(os.getcwd() + self.storage + '/scored.log')
-
+		
 		self.driver = webdriver.PhantomJS()
 		self.driver.set_window_size(1024, 768)
 		self.cj = cookielib.CookieJar()
@@ -180,7 +178,7 @@ class scored(object):
 						soup = self._get_page_soup(page, selenium=True)
 						if not soup:
 							self.f.write('soup not returned \n')
-							return False
+							break #return False
 						s = self._get_list(soup, page, fname)
 						if s != [] or s != None: sel.append(s) 
 						break
@@ -188,14 +186,14 @@ class scored(object):
 					soup = self._get_page_soup(page)
 					if not soup:
 						self.f.write('soup not returned \n')
-						return False
+						break #return False
 					s = self._get_list(soup, page, fname)
 					if s != [] or s != None: sel.append(s)
 			else:
 				soup = self._get_page_soup(page)
 				if not soup:
 					self.f.write('soup not returned \n')
-					return False
+					break #return False
 				s = self._get_list(soup, page, fname)
 				if s != [] or s != None: sel.append(s)
 
@@ -321,10 +319,10 @@ class scored(object):
 				time.sleep(self._get_random_time())
 				self.cj.clear()
 				return response.read()	
-			except:
+			except Exception as e:
 				print 'unable to reach link'
-				self.f.write('unable to reach %s with urllib2' %link)
-			return False
+				self.f.write('unable to reach %s with urllib2\n %s' %(link,e))
+				return False
 		else:
 			try:
 				sel = webdriver.PhantomJS() 
@@ -334,9 +332,9 @@ class scored(object):
 				sel.close()
 				return html	
 			
-			except:
+			except Exception as e:
 				print 'unable to reach link with selenium'
-				self.f.write('unable to reach %s with selenium' %link)
+				self.f.write('unable to reach %s with selenium\n %s' %(link,e))
 				return False
 
 
@@ -736,109 +734,108 @@ class scored(object):
 
 		if not soup:
 			self.f.write('soup not returned \n')
-			return False
+			#return False
+		else:
+			metaDict = self._get_meta_data(soup)
 
-		metaDict = self._get_meta_data(soup)
+			self.f.write('Acquiring text from %s\n' %page)
 
-		self.f.write('Acquiring text from %s\n' %page)
+			if not os.path.exists(os.getcwd() + self.storage + '/jsonFiles'):
+				os.makedirs(os.getcwd() + self.storage + '/jsonFiles')
 
-		if not os.path.exists(os.getcwd()+'/jsonFiles'):
-			os.makedirs(os.getcwd()+'/jsonFiles')
+			contentDict['id'] = page
 
-		contentDict['id'] = page
-
-		try:
-			for i in soup.find_all(class_=re.compile("^abstr")):
-				if i.find('p') or i.find(class_=re.compile("abstr")):
-					abstract += i.text.encode('utf-8')
-		except:
-			print 'Abstract was not found on this page'
-			self.f.write('Abstract was not found on this page\n')
-
-		try:
-			title = soup.find_all(class_=re.compile("itle"))
 			try:
-				if title.text.encode('utf-8'):
-					t = title.text.encode('utf-8')
+				for i in soup.find_all(class_=re.compile("^abstr")):
+					if i.find('p') or i.find(class_=re.compile("abstr")):
+						abstract += i.text.encode('utf-8')
 			except:
-				for ti in title:
-					if ti.find('p') or ti.find(class_=re.compile("pub")):
-						t = ti.text.encode('utf-8')
-					elif 'article_title' in str(ti):
-						t = (str(ti).split('</span>')[0].split("article_title")[-1]).encode('utf-8')
-			contentDict['title'] = t.strip()
-		except:
-			print 'Title was not found on this page'
-			self.f.write('Title was not found on this page')
-			contentDict['title'] = 'Null'
+				print 'Abstract was not found on this page'
+				self.f.write('Abstract was not found on this page\n')
 
-		try:
-			ack = soup.find_all(class_=re.compile("cknowledgement"))
-			contentDict['acknowledgement'] = ack.text.encode('utf-8')
-		except:
-			print 'Acknowledgements not found on this page'
-			self.f.write('Acknowledgements not found on this page\n')
-			contentDict['acknowledgement'] = 'Null'
-
-		try:
-			for x in soup.find_all(class_=re.compile("uthor")):
+			try:
+				title = soup.find_all(class_=re.compile("itle"))
 				try:
-					if x.find_all('strong'):
-						for k in x.find_all('strong'):
-							authors.append(k.text.encode('utf-8'))
-					elif x.find_all("a", class_=re.compile("uthor")):
-						for k in x.find_all("a",class_=re.compile("uthor")):
-							if not(any('search' in k.text.encode('utf-8').lower())):
+					if title.text.encode('utf-8'):
+						t = title.text.encode('utf-8')
+				except:
+					for ti in title:
+						if ti.find('p') or ti.find(class_=re.compile("pub")):
+							t = ti.text.encode('utf-8')
+						elif 'article_title' in str(ti):
+							t = (str(ti).split('</span>')[0].split("article_title")[-1]).encode('utf-8')
+				contentDict['title'] = t.strip()
+			except:
+				print 'Title was not found on this page'
+				self.f.write('Title was not found on this page')
+				contentDict['title'] = 'Null'
+
+			try:
+				ack = soup.find_all(class_=re.compile("cknowledgement"))
+				contentDict['acknowledgement'] = ack.text.encode('utf-8')
+			except:
+				print 'Acknowledgements not found on this page'
+				self.f.write('Acknowledgements not found on this page\n')
+				contentDict['acknowledgement'] = 'Null'
+
+			try:
+				for x in soup.find_all(class_=re.compile("uthor")):
+					try:
+						if x.find_all('strong'):
+							for k in x.find_all('strong'):
 								authors.append(k.text.encode('utf-8'))
-							for i in k:
-								try:
-									affilations.append(i.text.encode('utf-8').split('ffiliations')[-1])
-								except:
-									continue
-				except:
-					continue
-				try:
-					y = x.find_all('p')
-					if not authors:
-						for z in y:
-							authors.append(z.text.encode('utf-8'))
-					else:
-						for z in y:
-							affilations.append(z.text.encode('utf-8'))
-				except:
-					continue
-		except:
-			print 'Citation Authors info not found on this page'
-			self.f.write('Citation Authors info not found on this page\n')
-			contentDict['citation_authors'] = 'Null'
+						elif x.find_all("a", class_=re.compile("uthor")):
+							for k in x.find_all("a",class_=re.compile("uthor")):
+								if not(any('search' in k.text.encode('utf-8').lower())):
+									authors.append(k.text.encode('utf-8'))
+								for i in k:
+									try:
+										affilations.append(i.text.encode('utf-8').split('ffiliations')[-1])
+									except:
+										continue
+					except:
+						continue
+					try:
+						y = x.find_all('p')
+						if not authors:
+							for z in y:
+								authors.append(z.text.encode('utf-8'))
+						else:
+							for z in y:
+								affilations.append(z.text.encode('utf-8'))
+					except:
+						continue
+			except:
+				print 'Citation Authors info not found on this page'
+				self.f.write('Citation Authors info not found on this page\n')
+				contentDict['citation_authors'] = 'Null'
 
-		try:
-			for x in soup.find_all(class_=re.compile("corres")):
-				contentDict['corresponding_author'] = x.text.encode('utf-8').strip()
-		except:
-			print 'Corresponding Author info not found on this page'
-			self.f.write('Corresponding Author info not found on this page\n')
-			contentDict['corresponding_author'] = 'Null'
+			try:
+				for x in soup.find_all(class_=re.compile("corres")):
+					contentDict['corresponding_author'] = x.text.encode('utf-8').strip()
+			except:
+				print 'Corresponding Author info not found on this page'
+				self.f.write('Corresponding Author info not found on this page\n')
+				contentDict['corresponding_author'] = 'Null'
 
-		contentDict['abstract'] = abstract
-		contentDict['citation_authors'] = authors
-		contentDict['citation_affilations'] = affilations
+			contentDict['abstract'] = abstract
+			contentDict['citation_authors'] = authors
+			contentDict['citation_affilations'] = affilations
 
-		if metaDict:
-			contentDict.update(metaDict)
+			if metaDict:
+				contentDict.update(metaDict)
 
-		if abstract:
-			filenameJSON = os.getcwd() + self.storage + '/jsonFiles/'+ page.split('://')[1].replace('/','-').replace('.','-') +'.json'
-			
-			with open(filenameJSON, 'w+') as f:
-				json.dump(contentDict, f)
+			if abstract:
+				filenameJSON = os.getcwd() + self.storage + '/jsonFiles/'+ page.split('://')[1].replace('/','-').replace('.','-') +'.json'
+				with open(filenameJSON, 'w+') as f:
+					json.dump(contentDict, f)
 
 
 if __name__ == '__main__':
-	URLlink = 'http://journals.ametsoc.org' #'http://www.egu.eu/publications/open-access-journals/' 
-	journals = scored(URLlink,-1) #0, '/Users/kwhitehall/Documents/githubRepos/scored/xpathTest1.txt')#-1)
 	print 'Extracting Data from Journals...'
-	# journals.get_journal_list() 
-	# journals.get_issues_list()
+	URLlink = ''
+	journals = scored(URLlink,-1)
+	journals.get_journal_list() 
+	journals.get_issues_list()
 	journals.get_articles_list()
-	# journals.get_full_text()
+	journals.get_full_text()
