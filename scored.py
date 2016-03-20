@@ -56,8 +56,9 @@ class scored(object):
 					 'media', 'news', 'rss', 'mobile', 'help', 'award', 'meetings','job', 'access', 'privacy', 'features',\
 					 'information', 'search', 'book', 'aim', 'language', 'edition', 'discuss', 'ethics', 'cited', 'review',\
 					 'metrics', 'highlight', 'about', 'imprint', 'peer_review', 'comment', 'pol', 'account', '.xml', '.ris',\
-					 '.bib']
-		
+					 '.bib','keyword']
+		self.extensions = ['zip', 'png', 'jpeg', 'xml', 'bib', 'rss', 'gif', 'tar', 'bzip']
+
 		warnings.filterwarnings("error")
 
 
@@ -164,40 +165,41 @@ class scored(object):
 			sys.exit()
 		
 		for page in journals:
-			sel = filter(None, sel)
+			sel = self._use_selenium(page, sel)
+		# 	sel = filter(None, sel)
 
-			if len(sel) > 1:
-				# check for page similarity to the selenium pages
-				# if similiar to any page in there, _get_page_soup with selenium
-				for i in sel:
-					curr = self._find_common_patterns(page, i)
-					if len(curr[0]) == len(curr[1]):
-						print 'using selenium'
-						self.f.write('using selenium to access %s\n' %page)
-						useSel = True
-						soup = self._get_page_soup(page, selenium=True)
-						if not soup:
-							self.f.write('soup not returned \n')
-							break #return False
-						s = self._get_list(soup, page, fname)
-						if s != [] or s != None: sel.append(s) 
-						break
-				if useSel == False:
-					soup = self._get_page_soup(page)
-					if not soup:
-						self.f.write('soup not returned \n')
-						break #return False
-					s = self._get_list(soup, page, fname)
-					if s != [] or s != None: sel.append(s)
-			else:
-				soup = self._get_page_soup(page)
-				if not soup:
-					self.f.write('soup not returned \n')
-					break #return False
-				s = self._get_list(soup, page, fname)
-				if s != [] or s != None: sel.append(s)
+		# 	if len(sel) > 1:
+		# 		# check for page similarity to the selenium pages
+		# 		# if similiar to any page in there, _get_page_soup with selenium
+		# 		for i in sel:
+		# 			curr = self._find_common_patterns(page, i)
+		# 			if len(curr[0]) == len(curr[1]):
+		# 				print 'using selenium'
+		# 				self.f.write('using selenium to access %s\n' %page)
+		# 				useSel = True
+		# 				soup = self._get_page_soup(page, selenium=True)
+		# 				if not soup:
+		# 					self.f.write('soup not returned \n')
+		# 					break #return False
+		# 				s = self._get_list(soup, page, fname)
+		# 				if s != [] or s != None: sel.append(s) 
+		# 				break
+		# 		if useSel == False:
+		# 			soup = self._get_page_soup(page)
+		# 			if not soup:
+		# 				self.f.write('soup not returned \n')
+		# 				break #return False
+		# 			s = self._get_list(soup, page, fname)
+		# 			if s != [] or s != None: sel.append(s)
+		# 	else:
+		# 		soup = self._get_page_soup(page)
+		# 		if not soup:
+		# 			self.f.write('soup not returned \n')
+		# 			break #return False
+		# 		s = self._get_list(soup, page, fname)
+		# 		if s != [] or s != None: sel.append(s)
 
-			useSel = False
+		# 	useSel = False
 
 		self.f.write('Finished with get_issues_list\n')
 		print 'Finished with get_issues_list'
@@ -305,8 +307,52 @@ class scored(object):
 			print 'Finished with get_all'
 			return True
 
+	def _use_selenium(self, page, sel):
+		''' Check if to use selenium '''
+		
+		useSel = False
+		sel = filter(None, sel)
+
+		if len(sel) > 1:
+			# check for page similarity to the selenium pages
+			# if similiar to any page in there, _get_page_soup with selenium
+			for i in sel:
+				curr = self._find_common_patterns(page, i)
+				if len(curr[0]) == len(curr[1]):
+					print 'using selenium'
+					self.f.write('using selenium to access %s\n' %page)
+					useSel = True
+					soup = self._get_page_soup(page, selenium=True)
+					if not soup:
+						self.f.write('soup not returned \n')
+						#break #return False
+						return #False
+					s = self._get_list(soup, page, fname)
+					if s != [] or s != None: sel.append(s) 
+					break
+			if useSel == False:
+				soup = self._get_page_soup(page)
+				if not soup:
+					self.f.write('soup not returned \n')
+					# break #return False
+					return #False
+				s = self._get_list(soup, page, fname)
+				if s != [] or s != None: sel.append(s)
+		else:
+			soup = self._get_page_soup(page)
+			if not soup:
+				self.f.write('soup not returned \n')
+				# break #return False
+				return #False
+			s = self._get_list(soup, page, fname)
+			if s != [] or s != None: sel.append(s)
+
+		#useSel = False
+
+
 	def _remove_unwanted(self, URLlist):
 		''' remove links with extensions that aren't needed '''
+		#if journals, or issuelist open to remove the duplicates
 		cleanedList = []
 		if os.path.exists(os.getcwd() + self.storage + '/pdfs.txt'):
 			os.remove(os.getcwd() + self.storage + '/pdfs.txt')
@@ -319,11 +365,13 @@ class scored(object):
 			except:
 				extension = ''
 
-			if 'pdf' in extension.lower() and not link in pdfs:
+			if ('pdf' in extension.lower() or 'pdf' in link) and not link in pdfs:
 				with open(os.getcwd() + self.storage + '/pdfs.txt') as p:
 					p.write('%s\n' %link)
 					self.f.write('PDF found: %s\n' %link)
-			elif extension == '' or 'htm' in extension.lower() :
+			elif extension == '' or 'htm' in extension.lower():
+				cleanedList.append(link)
+			elif not(any(word in extension.lower() for word in self.extensions)):
 				cleanedList.append(link)
 
 		return cleanedList
@@ -855,10 +903,10 @@ class scored(object):
 
 
 if __name__ == '__main__':
-	URLlink = 'http://www.egu.eu/publications/open-access-journals/' #'http://journals.ametsoc.org' #
+	URLlink =  'http://journals.ametsoc.org' #'http://www.egu.eu/publications/open-access-journals/'
 	journals = scored(URLlink,-1) #0, '/Users/kwhitehall/Documents/githubRepos/scored/xpathTest1.txt')#-1)
 	print 'Extracting Data from Journals...'
 	# journals.get_journal_list() 
-	# journals.get_issues_list()
-	journals.get_articles_list()
+	journals.get_issues_list()
+	# journals.get_articles_list()
 	# journals.get_full_text()
