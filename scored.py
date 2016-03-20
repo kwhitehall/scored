@@ -323,7 +323,7 @@ class scored(object):
 				with open(os.getcwd() + self.storage + '/pdfs.txt') as p:
 					p.write('%s\n' %link)
 					self.f.write('PDF found: %s\n' %link)
-			elif extension == '' or extension.lower() == 'htm':
+			elif extension == '' or 'htm' in extension.lower() :
 				cleanedList.append(link)
 
 		return cleanedList
