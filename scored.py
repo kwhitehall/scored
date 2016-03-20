@@ -203,7 +203,6 @@ class scored(object):
 		print 'Finished with get_issues_list'
 		return True
 
-
 	def get_articles_list(self):
 		''' generate the journals lists from the issues list '''
 		
@@ -221,7 +220,8 @@ class scored(object):
 		sel = []
 		
 		try:
-			issues = [line.rstrip() for line in open(iname)]
+			fissues = [line.rstrip() for line in open(iname)]
+			issues = self._remove_unwanted(fissues)
 			random.shuffle(issues)
 		except: 
 			self.f.write('No issuelist.txt\n')
@@ -304,6 +304,29 @@ class scored(object):
 			self.f.write('Finished with get_all\n')
 			print 'Finished with get_all'
 			return True
+
+	def _remove_unwanted(self, URLlist):
+		''' remove links with extensions that aren't needed '''
+		cleanedList = []
+		if os.path.exists(os.getcwd() + self.storage + '/pdfs.txt'):
+			os.remove(os.getcwd() + self.storage + '/pdfs.txt')
+
+		pdfs = [line.strip() for line in open(os.getcwd() + self.storage + '/pdfs.txt')]
+
+		for link in URLlist:
+			try:
+				extension = link.split('.')[-1]
+			except:
+				extension = ''
+
+			if 'pdf' in extension.lower() and not link in pdfs:
+				with open(os.getcwd() + self.storage + '/pdfs.txt') as p:
+					p.write('%s\n' %link)
+					self.f.write('PDF found: %s\n' %link)
+			elif extension == '' or extension.lower() == 'htm':
+				cleanedList.append(link)
+
+		return cleanedList
 
 
 	def _get_html(self, link, selenium=None):
@@ -832,10 +855,10 @@ class scored(object):
 
 
 if __name__ == '__main__':
+	URLlink = 'http://www.egu.eu/publications/open-access-journals/' #'http://journals.ametsoc.org' #
+	journals = scored(URLlink,-1) #0, '/Users/kwhitehall/Documents/githubRepos/scored/xpathTest1.txt')#-1)
 	print 'Extracting Data from Journals...'
-	URLlink = ''
-	journals = scored(URLlink,-1)
-	journals.get_journal_list() 
-	journals.get_issues_list()
+	# journals.get_journal_list() 
+	# journals.get_issues_list()
 	journals.get_articles_list()
-	journals.get_full_text()
+	# journals.get_full_text()
