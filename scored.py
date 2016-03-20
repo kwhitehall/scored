@@ -165,42 +165,7 @@ class scored(object):
 			sys.exit()
 		
 		for page in journals:
-			sel = self._use_selenium(page, sel)
-		# 	sel = filter(None, sel)
-
-		# 	if len(sel) > 1:
-		# 		# check for page similarity to the selenium pages
-		# 		# if similiar to any page in there, _get_page_soup with selenium
-		# 		for i in sel:
-		# 			curr = self._find_common_patterns(page, i)
-		# 			if len(curr[0]) == len(curr[1]):
-		# 				print 'using selenium'
-		# 				self.f.write('using selenium to access %s\n' %page)
-		# 				useSel = True
-		# 				soup = self._get_page_soup(page, selenium=True)
-		# 				if not soup:
-		# 					self.f.write('soup not returned \n')
-		# 					break #return False
-		# 				s = self._get_list(soup, page, fname)
-		# 				if s != [] or s != None: sel.append(s) 
-		# 				break
-		# 		if useSel == False:
-		# 			soup = self._get_page_soup(page)
-		# 			if not soup:
-		# 				self.f.write('soup not returned \n')
-		# 				break #return False
-		# 			s = self._get_list(soup, page, fname)
-		# 			if s != [] or s != None: sel.append(s)
-		# 	else:
-		# 		soup = self._get_page_soup(page)
-		# 		if not soup:
-		# 			self.f.write('soup not returned \n')
-		# 			break #return False
-		# 		s = self._get_list(soup, page, fname)
-		# 		if s != [] or s != None: sel.append(s)
-
-		# 	useSel = False
-
+			sel = self._use_selenium(page, sel, fname)
 		self.f.write('Finished with get_issues_list\n')
 		print 'Finished with get_issues_list'
 		return True
@@ -230,40 +195,8 @@ class scored(object):
 			sys.exit()
 
 		for page in issues:
-			sel = filter(None, sel)
-			if len(sel) > 1:
-				# check for page similarity to the selenium pages
-				# if similiar to any page in there, _get_page_soup with selenium
-				for i in sel:
-					curr = self._find_common_patterns(page, i)
-					if len(curr[0]) == len(curr[1]):
-						print 'using selenium'
-						self.f.write('using selenium to access %s\n' %page)
-						useSel = True
-						soup = self._get_page_soup(page, selenium=True)
-						if not soup:
-							self.f.write('soup not returned \n')
-							return False
-						s = self._get_list(soup, page, fname)
-						if s != [] or s != None: sel.append(s) 
-						break
-				if useSel == False:
-					soup = self._get_page_soup(page)
-					if not soup:
-						self.f.write('soup not returned \n')
-						return False
-					s = self._get_list(soup, page, fname)
-					if s != [] or s != None: sel.append(s)
-			else:
-				soup = self._get_page_soup(page)
-				if not soup:
-					self.f.write('soup not returned \n')
-					return False
-				s = self._get_list(soup, page, fname)
-				if s != [] or s != None: sel.append(s)
-
-			useSel = False
-
+			sel = self._use_selenium(page, sel, fname)
+			
 		self.f.write('Finished with get_articles_list\n')
 		print 'Finished with get_articles_list'
 		return True
@@ -307,13 +240,14 @@ class scored(object):
 			print 'Finished with get_all'
 			return True
 
-	def _use_selenium(self, page, sel):
+	def _use_selenium(self, page, sel, fname):
 		''' Check if to use selenium '''
 		
 		useSel = False
-		sel = filter(None, sel)
+		if sel:
+			sel = filter(None, sel)
 
-		if len(sel) > 1:
+		if sel and len(sel) > 1:
 			# check for page similarity to the selenium pages
 			# if similiar to any page in there, _get_page_soup with selenium
 			for i in sel:
@@ -347,7 +281,7 @@ class scored(object):
 			s = self._get_list(soup, page, fname)
 			if s != [] or s != None: sel.append(s)
 
-		#useSel = False
+		return sel
 
 
 	def _remove_unwanted(self, URLlist):
