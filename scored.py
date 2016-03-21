@@ -308,8 +308,6 @@ class scored(object):
 			except:
 				extension = ''
 
-			print 'extension ', extension
-
 			if ('pdf' in extension.lower() or 'pdf' in link) and not link in pdfs:
 				with open(os.getcwd() + self.storage + '/pdfs.txt') as p:
 					p.write('%s\n' %link)
