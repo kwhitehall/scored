@@ -168,6 +168,7 @@ class scored(object):
 			sel = self._use_selenium(page, sel, fname)
 		self.f.write('Finished with get_issues_list\n')
 		print 'Finished with get_issues_list'
+		self._tear_down()
 		return True
 
 	def get_articles_list(self):
@@ -188,17 +189,22 @@ class scored(object):
 		
 		try:
 			fissues = [line.rstrip() for line in open(iname)]
+			print len(fissues)
 			issues = self._remove_unwanted(fissues)
+			print 'issuse '
 			random.shuffle(issues)
 		except: 
 			self.f.write('No issuelist.txt\n')
 			sys.exit()
+
+		print len(issues)
 
 		for page in issues:
 			sel = self._use_selenium(page, sel, fname)
 			
 		self.f.write('Finished with get_articles_list\n')
 		print 'Finished with get_articles_list'
+		self._tear_down()
 		return True
 
 
@@ -288,16 +294,21 @@ class scored(object):
 		''' remove links with extensions that aren't needed '''
 		#if journals, or issuelist open to remove the duplicates
 		cleanedList = []
+		try:
+			pdfs = [line.strip() for line in open(os.getcwd() + self.storage + '/pdfs.txt')]
+		except:
+			pdfs = []
+
 		if os.path.exists(os.getcwd() + self.storage + '/pdfs.txt'):
 			os.remove(os.getcwd() + self.storage + '/pdfs.txt')
-
-		pdfs = [line.strip() for line in open(os.getcwd() + self.storage + '/pdfs.txt')]
 
 		for link in URLlist:
 			try:
 				extension = link.split('.')[-1]
 			except:
 				extension = ''
+
+			print 'extension ', extension
 
 			if ('pdf' in extension.lower() or 'pdf' in link) and not link in pdfs:
 				with open(os.getcwd() + self.storage + '/pdfs.txt') as p:
@@ -837,10 +848,10 @@ class scored(object):
 
 
 if __name__ == '__main__':
-	URLlink =  ''
+	URLlink =  'http://journals.ametsoc.org'
 	journals = scored(URLlink,-1) 
 	print 'Extracting Data from Journals...'
 	# journals.get_journal_list() 
-	journals.get_issues_list()
-	# journals.get_articles_list()
+	# journals.get_issues_list()
+	journals.get_articles_list()
 	# journals.get_full_text()
