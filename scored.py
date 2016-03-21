@@ -56,8 +56,9 @@ class scored(object):
 					 'media', 'news', 'rss', 'mobile', 'help', 'award', 'meetings','job', 'access', 'privacy', 'features',\
 					 'information', 'search', 'book', 'aim', 'language', 'edition', 'discuss', 'ethics', 'cited', 'review',\
 					 'metrics', 'highlight', 'about', 'imprint', 'peer_review', 'comment', 'pol', 'account', '.xml', '.ris',\
-					 '.bib']
-		
+					 '.bib','keyword']
+		self.extensions = ['zip', 'png', 'jpeg', 'xml', 'bib', 'rss', 'gif', 'tar', 'bzip']
+
 		warnings.filterwarnings("error")
 
 
@@ -164,45 +165,10 @@ class scored(object):
 			sys.exit()
 		
 		for page in journals:
-			sel = filter(None, sel)
-
-			if len(sel) > 1:
-				# check for page similarity to the selenium pages
-				# if similiar to any page in there, _get_page_soup with selenium
-				for i in sel:
-					curr = self._find_common_patterns(page, i)
-					if len(curr[0]) == len(curr[1]):
-						print 'using selenium'
-						self.f.write('using selenium to access %s\n' %page)
-						useSel = True
-						soup = self._get_page_soup(page, selenium=True)
-						if not soup:
-							self.f.write('soup not returned \n')
-							break #return False
-						s = self._get_list(soup, page, fname)
-						if s != [] or s != None: sel.append(s) 
-						break
-				if useSel == False:
-					soup = self._get_page_soup(page)
-					if not soup:
-						self.f.write('soup not returned \n')
-						break #return False
-					s = self._get_list(soup, page, fname)
-					if s != [] or s != None: sel.append(s)
-			else:
-				soup = self._get_page_soup(page)
-				if not soup:
-					self.f.write('soup not returned \n')
-					break #return False
-				s = self._get_list(soup, page, fname)
-				if s != [] or s != None: sel.append(s)
-
-			useSel = False
-
+			sel = self._use_selenium(page, sel, fname)
 		self.f.write('Finished with get_issues_list\n')
 		print 'Finished with get_issues_list'
 		return True
-
 
 	def get_articles_list(self):
 		''' generate the journals lists from the issues list '''
@@ -221,47 +187,16 @@ class scored(object):
 		sel = []
 		
 		try:
-			issues = [line.rstrip() for line in open(iname)]
+			fissues = [line.rstrip() for line in open(iname)]
+			issues = self._remove_unwanted(fissues)
 			random.shuffle(issues)
 		except: 
 			self.f.write('No issuelist.txt\n')
 			sys.exit()
 
 		for page in issues:
-			sel = filter(None, sel)
-			if len(sel) > 1:
-				# check for page similarity to the selenium pages
-				# if similiar to any page in there, _get_page_soup with selenium
-				for i in sel:
-					curr = self._find_common_patterns(page, i)
-					if len(curr[0]) == len(curr[1]):
-						print 'using selenium'
-						self.f.write('using selenium to access %s\n' %page)
-						useSel = True
-						soup = self._get_page_soup(page, selenium=True)
-						if not soup:
-							self.f.write('soup not returned \n')
-							return False
-						s = self._get_list(soup, page, fname)
-						if s != [] or s != None: sel.append(s) 
-						break
-				if useSel == False:
-					soup = self._get_page_soup(page)
-					if not soup:
-						self.f.write('soup not returned \n')
-						return False
-					s = self._get_list(soup, page, fname)
-					if s != [] or s != None: sel.append(s)
-			else:
-				soup = self._get_page_soup(page)
-				if not soup:
-					self.f.write('soup not returned \n')
-					return False
-				s = self._get_list(soup, page, fname)
-				if s != [] or s != None: sel.append(s)
-
-			useSel = False
-
+			sel = self._use_selenium(page, sel, fname)
+			
 		self.f.write('Finished with get_articles_list\n')
 		print 'Finished with get_articles_list'
 		return True
@@ -304,6 +239,76 @@ class scored(object):
 			self.f.write('Finished with get_all\n')
 			print 'Finished with get_all'
 			return True
+
+	def _use_selenium(self, page, sel, fname):
+		''' Check if to use selenium '''
+		
+		useSel = False
+		if sel:
+			sel = filter(None, sel)
+
+		if sel and len(sel) > 1:
+			# check for page similarity to the selenium pages
+			# if similiar to any page in there, _get_page_soup with selenium
+			for i in sel:
+				curr = self._find_common_patterns(page, i)
+				if len(curr[0]) == len(curr[1]):
+					print 'using selenium'
+					self.f.write('using selenium to access %s\n' %page)
+					useSel = True
+					soup = self._get_page_soup(page, selenium=True)
+					if not soup:
+						self.f.write('soup not returned \n')
+						#break #return False
+						return #False
+					s = self._get_list(soup, page, fname)
+					if s != [] or s != None: sel.append(s) 
+					break
+			if useSel == False:
+				soup = self._get_page_soup(page)
+				if not soup:
+					self.f.write('soup not returned \n')
+					# break #return False
+					return #False
+				s = self._get_list(soup, page, fname)
+				if s != [] or s != None: sel.append(s)
+		else:
+			soup = self._get_page_soup(page)
+			if not soup:
+				self.f.write('soup not returned \n')
+				# break #return False
+				return #False
+			s = self._get_list(soup, page, fname)
+			if s != [] or s != None: sel.append(s)
+
+		return sel
+
+
+	def _remove_unwanted(self, URLlist):
+		''' remove links with extensions that aren't needed '''
+		#if journals, or issuelist open to remove the duplicates
+		cleanedList = []
+		if os.path.exists(os.getcwd() + self.storage + '/pdfs.txt'):
+			os.remove(os.getcwd() + self.storage + '/pdfs.txt')
+
+		pdfs = [line.strip() for line in open(os.getcwd() + self.storage + '/pdfs.txt')]
+
+		for link in URLlist:
+			try:
+				extension = link.split('.')[-1]
+			except:
+				extension = ''
+
+			if ('pdf' in extension.lower() or 'pdf' in link) and not link in pdfs:
+				with open(os.getcwd() + self.storage + '/pdfs.txt') as p:
+					p.write('%s\n' %link)
+					self.f.write('PDF found: %s\n' %link)
+			elif extension == '' or 'htm' in extension.lower():
+				cleanedList.append(link)
+			elif not(any(word in extension.lower() for word in self.extensions)):
+				cleanedList.append(link)
+
+		return cleanedList
 
 
 	def _get_html(self, link, selenium=None):
@@ -832,10 +837,10 @@ class scored(object):
 
 
 if __name__ == '__main__':
+	URLlink =  ''
+	journals = scored(URLlink,-1) 
 	print 'Extracting Data from Journals...'
-	URLlink = ''
-	journals = scored(URLlink,-1)
-	journals.get_journal_list() 
+	# journals.get_journal_list() 
 	journals.get_issues_list()
-	journals.get_articles_list()
-	journals.get_full_text()
+	# journals.get_articles_list()
+	# journals.get_full_text()
