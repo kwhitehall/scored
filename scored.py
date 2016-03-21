@@ -837,8 +837,8 @@ class scored(object):
 
 
 if __name__ == '__main__':
-	URLlink =  'http://journals.ametsoc.org' #'http://www.egu.eu/publications/open-access-journals/'
-	journals = scored(URLlink,-1) #0, '/Users/kwhitehall/Documents/githubRepos/scored/xpathTest1.txt')#-1)
+	URLlink =  ''
+	journals = scored(URLlink,-1) 
 	print 'Extracting Data from Journals...'
 	# journals.get_journal_list() 
 	journals.get_issues_list()
