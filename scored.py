@@ -465,7 +465,7 @@ class scored(object):
 							textDiff = self._compare_text(currLink.rstrip(), allLines)
 							if textDiff == True:
 								if re.findall('issue', currLink.lower()): 
-									if re.findall('issue', currLink.lower()): #.getText().lower()):
+									if re.search('\\bissue\\b', currLink.lower()): #.getText().lower()):
 										f.write('%s\n' %currLink)
 									else:
 										issuelist.append(currLink)
@@ -846,10 +846,10 @@ class scored(object):
 
 
 if __name__ == '__main__':
-	URLlink =  'http://journals.ametsoc.org'
-	journals = scored(URLlink,-1) 
+	URLlink =  ''
+	journals = scored(URLlink, -1) 
 	print 'Extracting Data from Journals...'
-	# journals.get_journal_list() 
-	# journals.get_issues_list()
+	journals.get_journal_list() 
+	journals.get_issues_list()
 	journals.get_articles_list()
-	# journals.get_full_text()
+	journals.get_full_text()
