@@ -207,7 +207,8 @@ class scored(object):
 
 	def get_full_text(self):
 		'''Driver script to extract data from page '''
-		
+		fname = None
+		sel = []
 		jobs = []
 		fallArticles = [line.rstrip() for line in open( os.getcwd() + self.storage + '/seedlist.txt')]		
 		allArticles = self._remove_unwanted(fallArticles)
@@ -216,15 +217,17 @@ class scored(object):
 		if len(allArticles) < self.xpages:
 			step = 2
 		else:
-			step = self.xpages
-		for i in range(0, len(allArticles), step):
-			for j in range(i, i+step):
-				try:
-					p = multiprocessing.Process(target=self._extract_full_text(allArticles[j]), args=(allArticles[j],))
-					jobs.append(p)
-					p.start()
-				except:
-					jobs = []
+			for page in allArticles:
+				sel = self._use_selenium(page,sel, fname)
+		# 	step = self.xpages
+		# for i in range(0, len(allArticles), step):
+		# 	for j in range(i, i+step):
+		# 		try:
+		# 			p = multiprocessing.Process(target=self._extract_full_text(allArticles[j]), args=(allArticles[j],))
+		# 			jobs.append(p)
+		# 			p.start()
+		# 		except:
+		# 			jobs = []
 
 		self.f.write('Finished with get_full_text\n')
 		print 'Finished with get_full_text'
@@ -248,7 +251,7 @@ class scored(object):
 
 	def _use_selenium(self, page, sel, fname):
 		''' Check if to use selenium '''
-		
+		#TODO: get the first 2 in sel that were skipped in determining to use selenium 
 		useSel = False
 		if sel:
 			sel = filter(None, sel)
@@ -269,7 +272,10 @@ class scored(object):
 						self.f.write('soup not returned \n')
 						#break #return False
 						return #False
-					s = self._get_list(soup, page, fname)
+					if fname is None:
+						s = self._extract_full_text(soup, page)
+					else:
+						s = self._get_list(soup, page, fname)
 					if s != [] or s != None: sel.append(s) 
 					break
 			if useSel == False:
@@ -278,7 +284,10 @@ class scored(object):
 					self.f.write('soup not returned \n')
 					# break #return False
 					return #False
-				s = self._get_list(soup, page, fname)
+				if fname is None:
+					s = self._extract_full_text(soup, page)
+				else:
+					s = self._get_list(soup, page, fname)
 				if s != [] or s != None: sel.append(s)
 		else:
 			soup = self._get_page_soup(page)
@@ -286,7 +295,10 @@ class scored(object):
 				self.f.write('soup not returned \n')
 				# break #return False
 				return #False
-			s = self._get_list(soup, page, fname)
+			if fname is None:
+				s = self._extract_full_text(soup, page)
+			else:
+				s = self._get_list(soup, page, fname)
 			if s != [] or s != None: sel.append(s)
 
 		return sel
@@ -759,118 +771,136 @@ class scored(object):
 					'contentType':contentType}
 
 
-	def _extract_full_text(self, page):
+	def _extract_full_text(self, soup, page):
 		''' Extract the data from a page '''
 		print 'text from: ', page
 		
+		seleniumList = []
 		metaDict = {}
 		contentDict = {}
 		abstract = ''
 		authors = []
 		affilations = []
 
-		soup = self._get_page_soup(page)
+		metaDict = self._get_meta_data(soup)
 
-		if not soup:
-			self.f.write('soup not returned \n')
-			#return False
-		else:
-			metaDict = self._get_meta_data(soup)
+		self.f.write('Acquiring text from %s\n' %page)
 
-			self.f.write('Acquiring text from %s\n' %page)
+		if not os.path.exists(os.getcwd() + self.storage + '/jsonFiles'):
+			os.makedirs(os.getcwd() + self.storage + '/jsonFiles')
 
-			if not os.path.exists(os.getcwd() + self.storage + '/jsonFiles'):
-				os.makedirs(os.getcwd() + self.storage + '/jsonFiles')
+		contentDict['id'] = page
 
-			contentDict['id'] = page
-
-			try:
-				for i in soup.find_all(class_=re.compile("^abstr")):
-					if i.find('p') or i.find(class_=re.compile("abstr")):
+		try:
+			for i in soup.find_all(class_=re.compile("^abstr")):
+				if i.find('p'):
+					abstract += i.text.encode('utf-8')
+				elif i.find(class_=re.compile("abstr")):
+					abstract += i.text.encode('utf-8')
+			if abstract == '': 
+				for i in soup.find_all(id_=re.compile("^abstr")):
+					print '^^^^^^^^^^^ ', i
+					if i.find('p'):
 						abstract += i.text.encode('utf-8')
-			except:
-				print 'Abstract was not found on this page'
-				self.f.write('Abstract was not found on this page\n')
+					elif i.find(class_=re.compile("abstr")):
+						abstract += i.text.encode('utf-8')	
+		except:
+			print 'Abstract was not found on this page'
+			self.f.write('Abstract was not found on this page\n')
 
+		try:
+			title = soup.find_all(class_=re.compile("itle"))
+			
 			try:
-				title = soup.find_all(class_=re.compile("itle"))
+				if title.text.encode('utf-8'):
+					t = title.text.encode('utf-8')
+			except:
+				for ti in title:
+					print '********* ', ti
+					if ti.find('p'):
+						t = ti.text.encode('utf-8')
+						contentDict['title'] = t.strip()
+					elif ti.find('h1'):
+						t = ti.text.encode('utf-8')
+						contentDict['title'] = t.strip()
+					elif ti.find(class_=re.compile("pub")):
+						t = ti.text.encode('utf-8')
+						contentDict['title'] = t.strip()
+					elif 'article_title' in str(ti):
+						t = (str(ti).split('</span>')[0].split("article_title")[-1]).encode('utf-8')
+						contentDict['title'] = t.strip()
+		except:
+			print 'Title was not found on this page'
+			self.f.write('Title was not found on this page')
+			contentDict['title'] = 'Null'
+
+		try:
+			ack = soup.find_all(class_=re.compile("cknowledgement"))
+			contentDict['acknowledgement'] = ack.text.encode('utf-8')
+		except:
+			print 'Acknowledgements not found on this page'
+			self.f.write('Acknowledgements not found on this page\n')
+			contentDict['acknowledgement'] = 'Null'
+
+		try:
+			for x in soup.find_all(class_=re.compile("uthor")):
 				try:
-					if title.text.encode('utf-8'):
-						t = title.text.encode('utf-8')
-				except:
-					for ti in title:
-						if ti.find('p') or ti.find(class_=re.compile("pub")):
-							t = ti.text.encode('utf-8')
-						elif 'article_title' in str(ti):
-							t = (str(ti).split('</span>')[0].split("article_title")[-1]).encode('utf-8')
-				contentDict['title'] = t.strip()
-			except:
-				print 'Title was not found on this page'
-				self.f.write('Title was not found on this page')
-				contentDict['title'] = 'Null'
-
-			try:
-				ack = soup.find_all(class_=re.compile("cknowledgement"))
-				contentDict['acknowledgement'] = ack.text.encode('utf-8')
-			except:
-				print 'Acknowledgements not found on this page'
-				self.f.write('Acknowledgements not found on this page\n')
-				contentDict['acknowledgement'] = 'Null'
-
-			try:
-				for x in soup.find_all(class_=re.compile("uthor")):
-					try:
-						if x.find_all('strong'):
-							for k in x.find_all('strong'):
+					if x.find_all('strong'):
+						for k in x.find_all('strong'):
+							authors.append(k.text.encode('utf-8'))
+					elif x.find_all("a", class_=re.compile("uthor")):
+						for k in x.find_all("a",class_=re.compile("uthor")):
+							if not(any('search' in k.text.encode('utf-8').lower())):
 								authors.append(k.text.encode('utf-8'))
-						elif x.find_all("a", class_=re.compile("uthor")):
-							for k in x.find_all("a",class_=re.compile("uthor")):
-								if not(any('search' in k.text.encode('utf-8').lower())):
-									authors.append(k.text.encode('utf-8'))
-								for i in k:
-									try:
-										affilations.append(i.text.encode('utf-8').split('ffiliations')[-1])
-									except:
-										continue
-					except:
-						continue
-					try:
-						y = x.find_all('p')
-						if not authors:
-							for z in y:
-								authors.append(z.text.encode('utf-8'))
-						else:
-							for z in y:
-								affilations.append(z.text.encode('utf-8'))
-					except:
-						continue
-			except:
-				print 'Citation Authors info not found on this page'
-				self.f.write('Citation Authors info not found on this page\n')
-				contentDict['citation_authors'] = 'Null'
+							for i in k:
+								try:
+									affilations.append(i.text.encode('utf-8').split('ffiliations')[-1])
+								except:
+									continue
+				except:
+					continue
+				try:
+					y = x.find_all('p')
+					if not authors:
+						for z in y:
+							authors.append(z.text.encode('utf-8'))
+					else:
+						for z in y:
+							affilations.append(z.text.encode('utf-8'))
+				except:
+					continue
+		except:
+			print 'Citation Authors info not found on this page'
+			self.f.write('Citation Authors info not found on this page\n')
+			contentDict['citation_authors'] = 'Null'
 
-			try:
-				for x in soup.find_all(class_=re.compile("corres")):
-					contentDict['corresponding_author'] = x.text.encode('utf-8').strip()
-			except:
-				print 'Corresponding Author info not found on this page'
-				self.f.write('Corresponding Author info not found on this page\n')
-				contentDict['corresponding_author'] = 'Null'
+		try:
+			for x in soup.find_all(class_=re.compile("corres")):
+				contentDict['corresponding_author'] = x.text.encode('utf-8').strip()
+		except:
+			print 'Corresponding Author info not found on this page'
+			self.f.write('Corresponding Author info not found on this page\n')
+			contentDict['corresponding_author'] = 'Null'
 
-			contentDict['abstract'] = abstract
-			contentDict['citation_authors'] = authors
-			contentDict['citation_affilations'] = affilations
+		contentDict['abstract'] = abstract
+		contentDict['citation_authors'] = authors
+		contentDict['citation_affilations'] = affilations
 
-			if metaDict:
-				contentDict.update(metaDict)
+		if metaDict:
+			contentDict.update(metaDict)
 
-			print 'abstract ', abstract
-			if abstract:
-				filenameJSON = os.getcwd() + self.storage + '/jsonFiles/'+ page.split('://')[1].replace('/','-').replace('.','-') +'.json'
-				print filenameJSON
-				sys.exit()
-				with open(filenameJSON, 'w+') as f:
-					json.dump(contentDict, f)
+		if abstract:
+			filenameJSON = os.getcwd() + self.storage + '/jsonFiles/'+ page.split('://')[1].replace('/','-').replace('.','-') +'.json'
+			with open(filenameJSON, 'w+') as f:
+				json.dump(contentDict, f)
+		else:
+			seleniumList.append(page)
+			filename = os.getcwd() + self.storage + '/jsonFiles/'+ page.split('://')[1].replace('/','-').replace('.','-')
+			with open(filename, 'w+') as f:
+				f.write(str(soup))
+
+		seleniumList = filter(None, seleniumList)
+		return seleniumList
 
 
 if __name__ == '__main__':
