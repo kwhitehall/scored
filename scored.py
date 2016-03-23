@@ -207,11 +207,12 @@ class scored(object):
 
 	def get_full_text(self):
 		'''Driver script to extract data from page '''
-		fallArticles = [line.rstrip() for line in open( os.getcwd() + self.storage + '/seedlist.txt')]		
-		jobs = []
-		allArticles = self._remove_unwanted(fallArticles)
 		
+		jobs = []
+		fallArticles = [line.rstrip() for line in open( os.getcwd() + self.storage + '/seedlist.txt')]		
+		allArticles = self._remove_unwanted(fallArticles)
 		random.shuffle(allArticles)
+		
 		if len(allArticles) < self.xpages:
 			step = 2
 		else:
@@ -330,7 +331,7 @@ class scored(object):
 			except:
 				extension = ''
 
-			if ('pdf' in extension.lower() or 'pdf' in link) and not link in pdfs:
+			if ('pdf' in extension.lower() or 'pdf' in link) and (len(pdfs) == 0 or not link in pdfs):
 				with open(os.getcwd() + self.storage + '/pdfs.txt','ab+') as p:
 					p.write('%s\n' %link)
 					self.f.write('PDF found: %s\n' %link)
@@ -340,6 +341,7 @@ class scored(object):
 				cleanedList.append(link)
 
 		cleanedList = filter(lambda x:x != self.url, cleanedList)
+
 		return cleanedList
 
 
@@ -862,8 +864,11 @@ class scored(object):
 			if metaDict:
 				contentDict.update(metaDict)
 
+			print 'abstract ', abstract
 			if abstract:
 				filenameJSON = os.getcwd() + self.storage + '/jsonFiles/'+ page.split('://')[1].replace('/','-').replace('.','-') +'.json'
+				print filenameJSON
+				sys.exit()
 				with open(filenameJSON, 'w+') as f:
 					json.dump(contentDict, f)
 
