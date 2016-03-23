@@ -38,7 +38,7 @@ class scored(object):
 		self.cj = cookielib.CookieJar()
 		self.opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.cj))
 		self.xpages = 10
-		self.url = url
+		self.url = url.strip()
 		self.storage = '/'+url.split('/')[2].replace('.','_')
 		if not os.path.exists(os.getcwd()+self.storage):
 			os.makedirs(os.getcwd()+self.storage)
@@ -171,6 +171,7 @@ class scored(object):
 		self._tear_down()
 		return True
 
+
 	def get_articles_list(self):
 		''' generate the journals lists from the issues list '''
 		
@@ -189,15 +190,11 @@ class scored(object):
 		
 		try:
 			fissues = [line.rstrip() for line in open(iname)]
-			print len(fissues)
 			issues = self._remove_unwanted(fissues)
-			print 'issuse '
 			random.shuffle(issues)
 		except: 
 			self.f.write('No issuelist.txt\n')
 			sys.exit()
-
-		print len(issues)
 
 		for page in issues:
 			sel = self._use_selenium(page, sel, fname)
@@ -210,8 +207,10 @@ class scored(object):
 
 	def get_full_text(self):
 		'''Driver script to extract data from page '''
-		allArticles = [line.rstrip() for line in open( os.getcwd() + self.storage + '/seedlist.txt')]		
+		fallArticles = [line.rstrip() for line in open( os.getcwd() + self.storage + '/seedlist.txt')]		
 		jobs = []
+		allArticles = self._remove_unwanted(fallArticles)
+		
 		random.shuffle(allArticles)
 		if len(allArticles) < self.xpages:
 			step = 2
@@ -252,6 +251,8 @@ class scored(object):
 		useSel = False
 		if sel:
 			sel = filter(None, sel)
+		else:
+			sel = []
 
 		if sel and len(sel) > 1:
 			# check for page similarity to the selenium pages
@@ -292,8 +293,29 @@ class scored(object):
 
 	def _remove_unwanted(self, URLlist):
 		''' remove links with extensions that aren't needed '''
-		#if journals, or issuelist open to remove the duplicates
+		#TODO: method to remove issue links in seedlist, etc. which may have made it due to premature termination
+		
+		otherUrls = []
 		cleanedList = []
+
+		if os.path.exists(os.getcwd() + self.storage + '/seedlist.txt'): 
+			if os.path.exists(os.getcwd() + self.storage + '/issuelistTmp.txt'):
+				otherUrls = [line.strip() for line in open( os.getcwd() + self.storage + '/seedlist.txt')] +\
+						[line.strip() for line in open( os.getcwd() + self.storage + '/issuelist.txt')] +\
+						[line.strip() for line in open( os.getcwd() + self.storage + '/issuelistTmp.txt')]
+		else:
+			otherUrls = [line.strip() for line in open( os.getcwd() + self.storage + '/seedlist.txt')] +\
+						[line.strip() for line in open( os.getcwd() + self.storage + '/issuelist.txt')]	            				
+		if os.path.exists(os.getcwd() + self.storage + '/issuelist.txt') and not os.path.exists(os.getcwd() + self.storage + '/seedlist.txt'):
+			if os.path.exists(os.getcwd() + self.storage + '/issuelistTmp.txt'):
+				otherUrls = [line.strip() for line in open( os.getcwd() + self.storage + '/issuelist.txt')] +\
+				        [line.strip() for line in open( os.getcwd() + self.storage + '/issuelistTmp.txt')]
+		else:
+			otherUrls = [line.strip() for line in open( os.getcwd() + self.storage + '/issuelist.txt')]
+			
+		if otherUrls != []:
+			URLlist = list(set(URLlist) - set(otherUrls))
+
 		try:
 			pdfs = [line.strip() for line in open(os.getcwd() + self.storage + '/pdfs.txt')]
 		except:
@@ -309,7 +331,7 @@ class scored(object):
 				extension = ''
 
 			if ('pdf' in extension.lower() or 'pdf' in link) and not link in pdfs:
-				with open(os.getcwd() + self.storage + '/pdfs.txt') as p:
+				with open(os.getcwd() + self.storage + '/pdfs.txt','ab+') as p:
 					p.write('%s\n' %link)
 					self.f.write('PDF found: %s\n' %link)
 			elif extension == '' or 'htm' in extension.lower():
@@ -317,6 +339,7 @@ class scored(object):
 			elif not(any(word in extension.lower() for word in self.extensions)):
 				cleanedList.append(link)
 
+		cleanedList = filter(lambda x:x != self.url, cleanedList)
 		return cleanedList
 
 
@@ -846,10 +869,10 @@ class scored(object):
 
 
 if __name__ == '__main__':
-	URLlink =  ''
-	journals = scored(URLlink, -1) 
+	URLlink = 'http://agupubs.onlinelibrary.wiley.com/agu' #'http://journals.ametsoc.org'
+	journals = scored(URLlink,  2, "//div[@class='content-area']/div/div/div/ul/li") #-1) 
 	print 'Extracting Data from Journals...'
-	journals.get_journal_list() 
-	journals.get_issues_list()
-	journals.get_articles_list()
+	# journals.get_journal_list() 
+	# journals.get_issues_list()
+	# journals.get_articles_list()
 	journals.get_full_text()
