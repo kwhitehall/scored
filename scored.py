@@ -798,8 +798,7 @@ class scored(object):
 				elif i.find(class_=re.compile("abstr")):
 					abstract += i.text.encode('utf-8')
 			if abstract == '': 
-				for i in soup.find_all(id_=re.compile("^abstr")):
-					print '^^^^^^^^^^^ ', i
+				for i in soup.find_all(id=re.compile("^abstr")):
 					if i.find('p'):
 						abstract += i.text.encode('utf-8')
 					elif i.find(class_=re.compile("abstr")):
@@ -816,7 +815,6 @@ class scored(object):
 					t = title.text.encode('utf-8')
 			except:
 				for ti in title:
-					print '********* ', ti
 					if ti.find('p'):
 						t = ti.text.encode('utf-8')
 						contentDict['title'] = t.strip()
