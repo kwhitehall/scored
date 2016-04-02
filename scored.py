@@ -26,9 +26,15 @@
 from selenium import webdriver
 from bs4 import BeautifulSoup, SoupStrainer
 from collections import Counter
+from flask import request, url_for
+from flask.ext.api import FlaskAPI, status, exceptions
+from flask.ext.api.decorators import set_renderers, set_parsers
+from flask.ext.api.renderers import JSONRenderer, HTMLRenderer
+from flask.ext.api.parsers import JSONParser, BaseParser
 import time, sys, os, difflib, fileinput, re, urllib2, cookielib, json, multiprocessing, random, warnings
 
 
+app = FlaskAPI(__name__)
 
 class scored(object):
 	def __init__(self, url, num, input1=None):
@@ -83,6 +89,7 @@ class scored(object):
 					for xpath in xpathList:
 						xpathElement = self.driver.find_element_by_xpath(xpath)
 						print 'here ', xpathElement
+						print 'here ', xpathElement
 						self.f.write('xpath: %s\n' %xpathElement.get_attribute('href'))
 						f.write('%s\n' %xpathElement.get_attribute('href'))
 				except:
@@ -133,6 +140,7 @@ class scored(object):
 					print 'Cannot locate journals on this page!'
 
 		self.f.write('Finished with get_journal_list\n')
+		print 'Finished with get_journal_list'
 		print 'Finished with get_journal_list'
 		self._tear_down()
 		return True
@@ -628,18 +636,18 @@ class scored(object):
 
 
 	def _longest_common_substring(self, s1, s2):
-	    M = [[0]*(1+len(s2)) for i in range(1+len(s1))]
-	    longest, xlongest = 0, 0
-	    for x in range(1,1 +len(s1)):
-	        for y in range(1, 1+len(s2)):
-	            if s1[x-1] == s2[y-1]:
-	                M[x][y] = M[x-1][y-1] + 1
-	                if M[x][y] > longest:
-	                    longest = M[x][y]
-	                    xlongest  = x
-	            else:
-	                M[x][y] = 0
-	    return s1[xlongest-longest: xlongest]
+		M = [[0]*(1+len(s2)) for i in range(1+len(s1))]
+		longest, xlongest = 0, 0
+		for x in range(1,1 +len(s1)):
+			for y in range(1, 1+len(s2)):
+				if s1[x-1] == s2[y-1]:
+					M[x][y] = M[x-1][y-1] + 1
+					if M[x][y] > longest:
+						longest = M[x][y]
+						xlongest  = x
+				else:
+					M[x][y] = 0
+		return s1[xlongest-longest: xlongest]
 
 
 	def _get_meta_data(self, soup):
@@ -844,12 +852,65 @@ class scored(object):
 				with open(filenameJSON, 'w+') as f:
 					json.dump(contentDict, f)
 
+class PlainTextParser(BaseParser):
+	"""
+	Plain text parser.
+	"""
+	media_type = 'text/plain'
+	def parse(self, stream, media_type, **options):
+		"""
+		Simply return a string representing the body of the request.
+		"""
+		return stream.read().decode('utf8')
+
+@app.route("/", methods=['GET', 'POST'])
+@set_parsers(PlainTextParser, JSONParser)
+def Which_data_for_this_problem():
+	""" 
+	To scrape a journal hosting website, Create a JSON object with fields url, source.
+	Source can be (XPathFile, ClassTag, XPathTag, or BeautifulSoup).  The first three options will scrape
+	the website using HTML tags, while the BeautifulSoup will scrape the entire website.  If you aren't
+	sure which one to pick, enter BeautifulSoup.  
+	If you choose XPathFile, add a field 'filename'
+	If you choose ClassTag or XPathTag, add a field 'tagString' with the your tag string.
+	"""
+	if request.method == 'POST':
+		url = str(request.data.get('url', ''))
+		source = str(request.data.get('source', ''))
+		if source == 'XPathFile':
+			filename = str(request.data.get('filename', ''))
+			print 'test1'
+			journals = scored(url, 0, param3)
+
+		elif source == 'ClassTag':
+			classTagString = str(request.data.get('tagString', ''))
+			print 'classtag working'
+			journals = scored(url, 1, param3)
+
+		elif source == 'XPathTag':
+			tagString = str(request.data.get('tagString', ''))
+			print 'xpathtag working'
+			journals = scored(url, 2, param3)
+		elif source == 'BeautifulSoup':
+			print 'soup working'
+			journals = scored(url, -1)
+
+		else:
+			return 'Please choose a source from the list', status.HTTP_400_BAD_REQUEST
+
+		print 'Extracting Data from Journals...'
+		journals.get_journal_list() 
+		journals.get_issues_list()
+		journals.get_articles_list()
+		journals.get_full_text()
+		return 'Finished Extracting', status.HTTP_200_OK
+
+	else:
+		return 'Welcome'
+	# request.method == 'GET'
+	#return plainTextNotes
+	#return [note_repr(idx) for idx in sorted(notes.keys())]
 
 if __name__ == '__main__':
-	URLlink =  ''
-	journals = scored(URLlink, -1) 
-	print 'Extracting Data from Journals...'
-	journals.get_journal_list() 
-	journals.get_issues_list()
-	journals.get_articles_list()
-	journals.get_full_text()
+	app.run(debug=True)
+	
