@@ -30,13 +30,12 @@ from nutch.nutch import Nutch
 from nutch.nutch import SeedClient
 from nutch.nutch import Server
 from nutch.nutch import JobClient
+from apscheduler.schedulers.background import BackgroundScheduler
 import time, sys, os, difflib, fileinput, re, urllib2, cookielib, json, multiprocessing, random, \
        warnings, subprocess, nutch
 
-
-
 class scored(object):
-	def __init__(self, url, num, input1=None):
+	def __init__(self, nutchLoc, url, num, input1=None):
 		
 		self.driver = webdriver.PhantomJS()
 		self.driver.set_window_size(1024, 768)
@@ -63,9 +62,33 @@ class scored(object):
 					 'metrics', 'highlight', 'about', 'imprint', 'peer_review', 'comment', 'pol', 'account', '.xml', '.ris',\
 					 '.bib','keyword']
 		self.extensions = ['zip', 'png', 'jpeg', 'xml', 'bib', 'rss', 'gif', 'tar', 'bzip']
+		
+		if not os.path.exists(nutchLoc+'/runtime/local'):
+			print 'No Nutch installation supplied. Exiting! \n'
+			self.f.write('No Nutch installation supplied. Exiting! \n')
+			sys.exit()
+		else:
+			os.environ['NUTCH_HOME'] = nutchLoc
+			self.nutchPID = self._start_Nutch_server()
+			self.f.write('Started Nutch Server PID %s\n' %self.nutchPID)
+			print 'Started Nutch Server PID %s\n' %self.nutchPID
+			self.sv = Server('http://localhost:8081')
+			self.sc = SeedClient(self.sv)
 
 		warnings.filterwarnings("error")
 
+
+	def _start_Nutch_server(self):
+		ps = subprocess.Popen("ps -ef | grep NutchServer | grep -v grep", shell=True, stdout=subprocess.PIPE).communicate()[0]
+		if ps:
+			self.f.write('Nutch Server is already running \n')
+			print 'Nutch Server is already running \n'
+			return False
+		else:
+			self.f.write('Starting Nutch server \n')
+			print 'Starting Nutch server \n'
+			nPID = subprocess.Popen([os.getenv('NUTCH_HOME')+'/runtime/local/bin/nutch','startserver']).pid
+			return nPID
 
 	def _tear_down(self):
 		self.driver.close() 
@@ -178,6 +201,9 @@ class scored(object):
 
 	def get_articles_list(self):
 		''' generate the journals lists from the issues list '''
+
+		global count = 0
+		continueServer = True
 		
 		if os.path.exists(os.getcwd() + self.storage + '/seedlist.txt'):
 			os.remove(os.getcwd() + self.storage + '/seedlist.txt')
@@ -202,7 +228,10 @@ class scored(object):
 			self.f.write('No issuelist.txt\n')
 			sys.exit()
 
-		print len(issues)
+		#timer for nutch job to check every 10mins
+		scheduler = BackgroundScheduler()
+		scheduler.add_job(self._get_seeds, 'interval', seconds=36000)
+		scheduler.start()
 
 		for page in issues:
 			sel = self._use_selenium(page, sel, fname)
@@ -210,8 +239,34 @@ class scored(object):
 		self.f.write('Finished with get_articles_list\n')
 		print 'Finished with get_articles_list'
 		self._tear_down()
+
+		#stop nutch server
+		while continueServer == True:
+			if count >= len([line.rstrip() for line in open(fname)]):
+				scheduler.shutdown()
+				continueServer = False
+
 		return True
 
+	def _get_seeds(self):
+		'''Extract from seeds'''
+		fname = os.getcwd() + self.storage + '/seedlist.txt'
+		#logic to check the how much of the file has been read
+		seedStep = 100
+		currSeeds = [line.rstrip() for line in open(fname)]
+		currlen = len(currSeeds)
+
+		while count < currlen:
+			if currlen <= count:
+				seeds = currSeeds[(currlen/seedStep)*seedStep + (currlen%seedStep):]
+				random.shuffle(seeds)
+				nt = self._send_seeds(self, seeds)
+			else:
+				seeds = currSeeds[count:count+seedStep]
+				random.shuffle(seeds)
+				count += seedStep
+				nt = self._send_seeds(self, seeds)
+		nt.stopServer		
 
 	def get_full_text(self):
 		'''Driver script to extract data from page '''
@@ -849,35 +904,8 @@ class scored(object):
 				with open(filenameJSON, 'w+') as f:
 					json.dump(contentDict, f)
 
-class crawler(object):
-	def __init__(self, nutchLoc):
-		reload(sys)  
-		sys.setdefaultencoding('utf8')
-		self.log = os.getcwd() + '/scored.log'
-		self.f = open(self.log,'ab+')
-		if not os.path.exists(nutchLoc+'/runtime/local'):
-			print 'No Nutch installation supplied. Exiting! \n'
-			self.f.write('No Nutch installation supplied. Exiting! \n')
-			sys.exit()
-		else:
-			os.environ['NUTCH_HOME'] = nutchLoc
-			self.nutchPID = self._start_Nutch_server()
-			self.sv = Server('http://localhost:8081')
-			self.sc = SeedClient(self.sv)
 
-	def _start_Nutch_server(self):
-		ps = subprocess.Popen("ps -ef | grep NutchServer | grep -v grep", shell=True, stdout=subprocess.PIPE).communicate()[0]
-		if ps:
-			self.f.write('Nutch Server is already running \n')
-			print 'Nutch Server is already running \n'
-			return False
-		else:
-			self.f.write('Starting Nutch server \n')
-			print 'Starting Nutch server \n'
-			nPID = subprocess.Popen([os.getenv('NUTCH_HOME')+'/runtime/local/bin/nutch','startserver']).pid
-			return nPID
-
-	def send_seeds(self, seedlist, config=None):
+	def _send_seeds(self, seedlist, config=None):
 		'''Read data from file to kick into nutch'''
 		'''
 		Open file, while more urls to check if filelen 1-100, grab 100 and randomize, and send to nutch server.
@@ -888,37 +916,100 @@ class crawler(object):
 			nt = Nutch('default')
 			config = 'default'
 
-		count = 0
-		seedStep = 100
-		currSeeds = [line.rstrip() for line in open(seedlist)]
-		currlen = len(currSeeds)
+		# count = 0
+		# seedStep = 100
+		# currSeeds = [line.rstrip() for line in open(seedlist)]
+		# currlen = len(currSeeds)
 
-		while count < currlen:
-			if currlen <= count:
-				seeds = currSeeds[(currlen/seedStep)*seedStep + (currlen%seedStep):]
-				random.shuffle(seeds)
-				sd = self.sc.create('scored', seeds)
-			else:
-				seeds = currSeeds[count:count+seedStep]
-				random.shuffle(seeds)
-				sd = self.sc.create('scored', seeds)
-				jc = JobClient(self.sv, 'scored', config)
-				cc = nt.Crawl(sd, self.sc, jc)
-				while True:
-				    job = cc.progress() # gets the current job if no progress, else iterates and makes progress
-				    if job == None:
-				        break
-				count += seedStep
+		# while count < currlen:
+		# 	if currlen <= count:
+		# 		seeds = currSeeds[(currlen/seedStep)*seedStep + (currlen%seedStep):]
+		# 		random.shuffle(seeds)
+		# 		sd = self.sc.create('scored', seeds)
+		# 	else:
+		# 		seeds = currSeeds[count:count+seedStep]
+		# 		random.shuffle(seeds)
+		sd = self.sc.create('scored', seeds)
+		jc = JobClient(self.sv, 'scored', config)
+		cc = nt.Crawl(sd, self.sc, jc)
+		while True:
+		    job = cc.progress() # gets the current job if no progress, else iterates and makes progress
+		    if job == None:
+		        break
+		count += seedStep
+		return nt
+
+
+# class crawler(object):
+# 	def __init__(self, nutchLoc):
+# 		reload(sys)  
+# 		sys.setdefaultencoding('utf8')
+# 		self.log = os.getcwd() + '/scored.log'
+# 		self.f = open(self.log,'ab+')
+# 		if not os.path.exists(nutchLoc+'/runtime/local'):
+# 			print 'No Nutch installation supplied. Exiting! \n'
+# 			self.f.write('No Nutch installation supplied. Exiting! \n')
+# 			sys.exit()
+# 		else:
+# 			os.environ['NUTCH_HOME'] = nutchLoc
+# 			self.nutchPID = self._start_Nutch_server()
+# 			self.sv = Server('http://localhost:8081')
+# 			self.sc = SeedClient(self.sv)
+
+	# def _start_Nutch_server(self):
+	# 	ps = subprocess.Popen("ps -ef | grep NutchServer | grep -v grep", shell=True, stdout=subprocess.PIPE).communicate()[0]
+	# 	if ps:
+	# 		self.f.write('Nutch Server is already running \n')
+	# 		print 'Nutch Server is already running \n'
+	# 		return False
+	# 	else:
+	# 		self.f.write('Starting Nutch server \n')
+	# 		print 'Starting Nutch server \n'
+	# 		nPID = subprocess.Popen([os.getenv('NUTCH_HOME')+'/runtime/local/bin/nutch','startserver']).pid
+	# 		return nPID
+
+	# def send_seeds(self, seedlist, config=None):
+	# 	'''Read data from file to kick into nutch'''
+	# 	'''
+	# 	Open file, while more urls to check if filelen 1-100, grab 100 and randomize, and send to nutch server.
+	# 	'''
+	# 	if config:
+	# 		nt = Nutch(config)
+	# 	else:
+	# 		nt = Nutch('default')
+	# 		config = 'default'
+
+	# 	count = 0
+	# 	seedStep = 100
+	# 	currSeeds = [line.rstrip() for line in open(seedlist)]
+	# 	currlen = len(currSeeds)
+
+	# 	while count < currlen:
+	# 		if currlen <= count:
+	# 			seeds = currSeeds[(currlen/seedStep)*seedStep + (currlen%seedStep):]
+	# 			random.shuffle(seeds)
+	# 			sd = self.sc.create('scored', seeds)
+	# 		else:
+	# 			seeds = currSeeds[count:count+seedStep]
+	# 			random.shuffle(seeds)
+	# 			sd = self.sc.create('scored', seeds)
+	# 			jc = JobClient(self.sv, 'scored', config)
+	# 			cc = nt.Crawl(sd, self.sc, jc)
+	# 			while True:
+	# 			    job = cc.progress() # gets the current job if no progress, else iterates and makes progress
+	# 			    if job == None:
+	# 			        break
+	# 			count += seedStep
 
 if __name__ == '__main__':
 	nutchLoc = '/Users/kwhitehall/Documents/apache-nutch-1.11'
-	seeds = '/Users/kwhitehall/Documents/githubRepos/scored/www_egu_eu/seedlist.txt'
-	URLlink =  ''
-	nutchc = crawler(nutchLoc)
-	nutchc.send_seeds(seeds)
-	# journals = scored(URLlink, -1) 
+	# seeds = '/Users/kwhitehall/Documents/githubRepos/scored/www_egu_eu/seedlist.txt'
+	URLlink =  'http://www.egu.eu/publications/open-access-journals'
+	# nutchc = crawler(nutchLoc)
+	# nutchc.send_seeds(seeds)
+	journals = scored(nutchLoc, URLlink, -1) 
 	# print 'Extracting Data from Journals...'
 	# journals.get_journal_list() 
 	# journals.get_issues_list()
-	# journals.get_articles_list()
+	journals.get_articles_list()
 	# journals.get_full_text()
