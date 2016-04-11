@@ -912,5 +912,16 @@ def Which_data_for_this_problem():
 	#return [note_repr(idx) for idx in sorted(notes.keys())]
 
 if __name__ == '__main__':
-	app.run(debug=True)
+	if(len(sys.argv) >= 2):
+		if(sys.argv[1] == 'flask'):
+			app.run(debug=True)
+
+	else:
+		URLlink =  'http://agupubs.onlinelibrary.wiley.com/'
+		journals = scored(URLlink, -1) 
+		print 'Extracting Data from Journals...'
+		journals.get_journal_list() 
+		journals.get_issues_list()
+		journals.get_articles_list()
+		journals.get_full_text()
 	
