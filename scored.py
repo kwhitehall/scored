@@ -176,7 +176,7 @@ class scored(object):
 			sel = self._use_selenium(page, sel, fname)
 		self.f.write('Finished with get_issues_list\n')
 		print 'Finished with get_issues_list'
-		self._tear_down()
+		#self._tear_down()
 		return True
 
 	def get_articles_list(self):
@@ -212,7 +212,7 @@ class scored(object):
 			
 		self.f.write('Finished with get_articles_list\n')
 		print 'Finished with get_articles_list'
-		self._tear_down()
+		#self._tear_down()
 		return True
 
 
@@ -917,7 +917,7 @@ if __name__ == '__main__':
 			app.run(debug=True)
 
 	else:
-		URLlink =  'http://agupubs.onlinelibrary.wiley.com/'
+		URLlink =  ''
 		journals = scored(URLlink, -1) 
 		print 'Extracting Data from Journals...'
 		journals.get_journal_list() 
