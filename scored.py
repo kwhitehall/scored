@@ -89,7 +89,6 @@ class scored(object):
 					for xpath in xpathList:
 						xpathElement = self.driver.find_element_by_xpath(xpath)
 						print 'here ', xpathElement
-						print 'here ', xpathElement
 						self.f.write('xpath: %s\n' %xpathElement.get_attribute('href'))
 						f.write('%s\n' %xpathElement.get_attribute('href'))
 				except:
@@ -140,7 +139,6 @@ class scored(object):
 					print 'Cannot locate journals on this page!'
 
 		self.f.write('Finished with get_journal_list\n')
-		print 'Finished with get_journal_list'
 		print 'Finished with get_journal_list'
 		self._tear_down()
 		return True
@@ -868,9 +866,9 @@ class PlainTextParser(BaseParser):
 def Which_data_for_this_problem():
 	""" 
 	Our scraping is broken down into four different functions, gathering the journals, issues, articles, and then full text.  
-	To scrape a journal hosting website, Create a JSON object with field function.
+	To scrape a journal hosting website, Create a JSON object with fields function and url
 	Function can be (Journals, Issues, Articles, FullText, or All)
-	If Function = Journals or All, please enter fields source and url.
+	If Function = Journals or All, please add field source.
 		Source can be (XPathFile, ClassTag, XPathTag, or BeautifulSoup).  The first three options will scrape
 			the website using HTML tags, while the BeautifulSoup will scrape the entire website.  If you aren't
 			sure which one to pick, enter BeautifulSoup.  
@@ -958,15 +956,3 @@ if __name__ == '__main__':
 		journals.get_articles_list()
 		journals.get_full_text()
 	
-'''
-{
-"function": "Journals",
-"url": "http://www.adv-geosci.net/38/21/2014/adgeo-38-21-2014.pdf",
-"source": "BeautifulSoup"
-}
-
-{
-"function": "Issues",
-"url": "http://www.adv-geosci.net/38/21/2014/adgeo-38-21-2014.pdf"
-}
-'''
