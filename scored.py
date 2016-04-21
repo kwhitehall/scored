@@ -31,7 +31,7 @@ from flask.ext.api import FlaskAPI, status, exceptions
 from flask.ext.api.decorators import set_renderers, set_parsers
 from flask.ext.api.renderers import JSONRenderer, HTMLRenderer
 from flask.ext.api.parsers import JSONParser, BaseParser
-import time, sys, os, difflib, fileinput, re, urllib2, cookielib, json, multiprocessing, random, warnings
+import time, sys, os, difflib, fileinput, re, urllib2, cookielib, json, multiprocessing, random, warnings, thread
 
 
 app = FlaskAPI(__name__)
@@ -148,7 +148,7 @@ class scored(object):
 
 	def get_issues_list(self):
 		''' get all issues '''
-
+		
 		if os.path.exists(os.getcwd() + self.storage + '/issuelist.txt'):
 			os.remove(os.getcwd() + self.storage + '/issuelist.txt')
 
@@ -176,7 +176,6 @@ class scored(object):
 			sel = self._use_selenium(page, sel, fname)
 		self.f.write('Finished with get_issues_list\n')
 		print 'Finished with get_issues_list'
-		#self._tear_down()
 		return True
 
 	def get_articles_list(self):
@@ -212,7 +211,6 @@ class scored(object):
 			
 		self.f.write('Finished with get_articles_list\n')
 		print 'Finished with get_articles_list'
-		#self._tear_down()
 		return True
 
 
@@ -601,6 +599,8 @@ class scored(object):
 		random.seed()
 		return random.uniform(5.0, 30.0)
 
+	def get_log(self):
+		return self.log
 
 	def _isSimilar_urls(self, urls):
 		''' compare url with those in list to determine similarity.'''
@@ -867,43 +867,76 @@ class PlainTextParser(BaseParser):
 @set_parsers(PlainTextParser, JSONParser)
 def Which_data_for_this_problem():
 	""" 
-	To scrape a journal hosting website, Create a JSON object with fields url, source.
-	Source can be (XPathFile, ClassTag, XPathTag, or BeautifulSoup).  The first three options will scrape
-	the website using HTML tags, while the BeautifulSoup will scrape the entire website.  If you aren't
-	sure which one to pick, enter BeautifulSoup.  
-	If you choose XPathFile, add a field 'filename'
-	If you choose ClassTag or XPathTag, add a field 'tagString' with the your tag string.
+	Our scraping is broken down into four different functions, gathering the journals, issues, articles, and then full text.  
+	To scrape a journal hosting website, Create a JSON object with field function.
+	Function can be (Journals, Issues, Articles, FullText, or All)
+	If Function = Journals or All, please enter fields source and url.
+		Source can be (XPathFile, ClassTag, XPathTag, or BeautifulSoup).  The first three options will scrape
+			the website using HTML tags, while the BeautifulSoup will scrape the entire website.  If you aren't
+			sure which one to pick, enter BeautifulSoup.  
+		If you choose XPathFile, add a field 'filename'
+		If you choose ClassTag or XPathTag, add a field 'tagString' with the your tag string.
+	If Function = Issues, Articles, or FullText, please enter the filename of the file containing
+		the list of journals, the list of issues, or the seedlist respectively 
+	Example:
+	[
+		'Function': Journals,
+		'url': www.google.com,
+		'source': BeautifulSoup
+	]
+	
 	"""
 	if request.method == 'POST':
+		function = str(request.data.get('function', ''))
 		url = str(request.data.get('url', ''))
-		source = str(request.data.get('source', ''))
-		if source == 'XPathFile':
-			filename = str(request.data.get('filename', ''))
-			print 'test1'
-			journals = scored(url, 0, param3)
+		if function == 'Journals' or function == 'All':
+			source = str(request.data.get('source', ''))
+			if source == 'XPathFile':
+				filename = str(request.data.get('filename', ''))
+				print 'test1'
+				journals = scored(url, 0, filename)
 
-		elif source == 'ClassTag':
-			classTagString = str(request.data.get('tagString', ''))
-			print 'classtag working'
-			journals = scored(url, 1, param3)
+			elif source == 'ClassTag':
+				classTagString = str(request.data.get('tagString', ''))
+				print 'classtag working'
+				journals = scored(url, 1, classTagString)
 
-		elif source == 'XPathTag':
-			tagString = str(request.data.get('tagString', ''))
-			print 'xpathtag working'
-			journals = scored(url, 2, param3)
-		elif source == 'BeautifulSoup':
-			print 'soup working'
-			journals = scored(url, -1)
+			elif source == 'XPathTag':
+				tagString = str(request.data.get('tagString', ''))
+				print 'xpathtag working'
+				journals = scored(url, 2, tagString)
+			elif source == 'BeautifulSoup':
+				print 'soup working'
+				journals = scored(url, -1)
+
+			else:
+				return 'Please choose a source from the list', status.HTTP_400_BAD_REQUEST
+			if function == 'Journals':
+				print 'Extracting Data from Journals...'
+				thread.start_new_thread(journals.get_journal_list, ())
+
+			elif function == 'All':
+				journals.get_journal_list()
+				journals.get_issues_list()
+				journals.get_articles_list()
+				journals.get_full_text()
 
 		else:
-			return 'Please choose a source from the list', status.HTTP_400_BAD_REQUEST
+			journals = scored(url, -1, '')
 
-		print 'Extracting Data from Journals...'
-		journals.get_journal_list() 
-		journals.get_issues_list()
-		journals.get_articles_list()
-		journals.get_full_text()
-		return 'Finished Extracting', status.HTTP_200_OK
+			if(function == 'Issues'):
+				journals.get_issues_list()
+
+			elif(function == 'Articles'):
+				journals.get_articles_list()
+
+			elif(function == 'FullText'):
+				journals.get_full_text()
+
+
+		log = journals.get_log()
+		retString = 'Extraction has begun. Please check ' + log + ' for updates in the process'
+		return retString, status.HTTP_200_OK
 
 	else:
 		return 'Welcome'
@@ -917,7 +950,7 @@ if __name__ == '__main__':
 			app.run(debug=True)
 
 	else:
-		URLlink =  ''
+		URLlink =  'http://www.adv-geosci.net/38/21/2014/adgeo-38-21-2014.pdf'
 		journals = scored(URLlink, -1) 
 		print 'Extracting Data from Journals...'
 		journals.get_journal_list() 
@@ -925,3 +958,15 @@ if __name__ == '__main__':
 		journals.get_articles_list()
 		journals.get_full_text()
 	
+'''
+{
+"function": "Journals",
+"url": "http://www.adv-geosci.net/38/21/2014/adgeo-38-21-2014.pdf",
+"source": "BeautifulSoup"
+}
+
+{
+"function": "Issues",
+"url": "http://www.adv-geosci.net/38/21/2014/adgeo-38-21-2014.pdf"
+}
+'''
