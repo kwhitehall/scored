@@ -914,22 +914,19 @@ def Which_data_for_this_problem():
 				thread.start_new_thread(journals.get_journal_list, ())
 
 			elif function == 'All':
-				journals.get_journal_list()
-				journals.get_issues_list()
-				journals.get_articles_list()
-				journals.get_full_text()
+				thread.start_new_thread(journals.get_all, ())
 
 		else:
 			journals = scored(url, -1, '')
 
 			if(function == 'Issues'):
-				journals.get_issues_list()
-
+				thread.start_new_thread(journals.get_issues_list, ())
+				
 			elif(function == 'Articles'):
-				journals.get_articles_list()
+				thread.start_new_thread(journals.get_journal_list, ())
 
 			elif(function == 'FullText'):
-				journals.get_full_text()
+				thread.start_new_thread(journals.get_full_text, ())
 
 
 		log = journals.get_log()
