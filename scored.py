@@ -54,6 +54,7 @@ class scored(object):
 		self.f = open(self.log,'ab+')
 		self.num = num
 		self.input1 = input1
+		self.count = 0
 		self.stopwords = ['facebook', 'twitter', 'youtube', 'linkedin', 'membership', 'subscribe', 'subscription', 'blog',\
 					 'submit', 'contact', 'listserve', 'login', 'disclaim', 'editor', 'section', 'librarian', 'alert',\
 					 '#', 'email', '?', 'copyright', 'license', 'charges', 'terms', 'mailto:', 'submission', 'author',\
@@ -64,16 +65,18 @@ class scored(object):
 		self.extensions = ['zip', 'png', 'jpeg', 'xml', 'bib', 'rss', 'gif', 'tar', 'bzip']
 		
 		if not os.path.exists(nutchLoc+'/runtime/local'):
-			print 'No Nutch installation supplied. Exiting! \n'
-			self.f.write('No Nutch installation supplied. Exiting! \n')
-			sys.exit()
+			print 'No Nutch installation supplied! \n'
+			self.f.write('No Nutch installation supplied! \n')
+			# sys.exit()
+			self.useNutch = False
 		else:
 			os.environ['NUTCH_HOME'] = nutchLoc
 			self.nutchPID = self._start_Nutch_server()
-			self.f.write('Started Nutch Server PID %s\n' %self.nutchPID)
-			print 'Started Nutch Server PID %s\n' %self.nutchPID
+			# self.f.write('Started Nutch Server PID %s\n' %self.nutchPID)
+			# print 'Started Nutch Server PID %s\n' %self.nutchPID
 			self.sv = Server('http://localhost:8081')
 			self.sc = SeedClient(self.sv)
+			self.useNutch = True
 
 		warnings.filterwarnings("error")
 
@@ -89,6 +92,7 @@ class scored(object):
 			print 'Starting Nutch server \n'
 			nPID = subprocess.Popen([os.getenv('NUTCH_HOME')+'/runtime/local/bin/nutch','startserver']).pid
 			return nPID
+
 
 	def _tear_down(self):
 		self.driver.close() 
@@ -193,16 +197,18 @@ class scored(object):
 			sys.exit()
 		
 		for page in journals:
-			sel = self._use_selenium(page, sel, fname)
+			sel,_ = self._use_selenium(page, sel, fname)
 		self.f.write('Finished with get_issues_list\n')
 		print 'Finished with get_issues_list'
 		self._tear_down()
 		return True
 
+
 	def get_articles_list(self):
 		''' generate the journals lists from the issues list '''
 
-		global count = 0
+		# global count 
+		# count = 0
 		continueServer = True
 		
 		if os.path.exists(os.getcwd() + self.storage + '/seedlist.txt'):
@@ -228,49 +234,68 @@ class scored(object):
 			self.f.write('No issuelist.txt\n')
 			sys.exit()
 
-		#timer for nutch job to check every 10mins
-		scheduler = BackgroundScheduler()
-		scheduler.add_job(self._get_seeds, 'interval', seconds=36000)
-		scheduler.start()
+		if self.useNutch == True:
+			#timer for nutch job to check every 10mins
+			scheduler = BackgroundScheduler()
+			# scheduler.add_job(self._get_seeds, 'interval', seconds=36000)
+			scheduler.start()
 
 		for page in issues:
-			sel = self._use_selenium(page, sel, fname)
-			
+			sel, useSel = self._use_selenium(page, sel, fname)
+			print '** ', useSel, self.useNutch
+			if self.useNutch == True:
+				if useSel == True:
+					# use nutch config for selenium
+					scheduler.add_job(self._get_seeds, 'interval', seconds=3)#6000)
+				else:
+					scheduler.add_job(self._get_seeds, 'interval', seconds=3) #6000)
+				
 		self.f.write('Finished with get_articles_list\n')
 		print 'Finished with get_articles_list'
 		self._tear_down()
 
-		#stop nutch server
-		while continueServer == True:
-			if count >= len([line.rstrip() for line in open(fname)]):
-				scheduler.shutdown()
-				continueServer = False
+		# if self.useNutch == True:
+		# 	#stop nutch server
+		# 	while continueServer == True:
+		# 		if count >= len([line.rstrip() for line in open(fname)]):
+		# 			scheduler.shutdown()
+		# 			continueServer = False
 
 		return True
 
+
 	def _get_seeds(self):
 		'''Extract from seeds'''
+		print '^^^^ _get_seeds ', self.count
 		fname = os.getcwd() + self.storage + '/seedlist.txt'
 		#logic to check the how much of the file has been read
-		seedStep = 100
+		seedStep = 2 #100
 		currSeeds = [line.rstrip() for line in open(fname)]
 		currlen = len(currSeeds)
+		print 'len currSeeds ', len(currSeeds)
+		sys.exit()
 
-		while count < currlen:
-			if currlen <= count:
+		while self.count < currlen:
+			print self.count
+			if currlen <= self.count:
+				print 'in if ', (currlen/seedStep)*seedStep + (currlen%seedStep)
 				seeds = currSeeds[(currlen/seedStep)*seedStep + (currlen%seedStep):]
-				random.shuffle(seeds)
-				nt = self._send_seeds(self, seeds)
+				# random.shuffle(seeds)
+				# nt = self._send_seeds(self, seeds)
 			else:
-				seeds = currSeeds[count:count+seedStep]
-				random.shuffle(seeds)
-				count += seedStep
-				nt = self._send_seeds(self, seeds)
+				seeds = currSeeds[self.count:self.count+seedStep]
+				print 'in else ', self.count+seedStep
+			random.shuffle(seeds)
+			self.count += seedStep
+			nt = self._send_seeds(self, seeds)
 		nt.stopServer		
 
-	def get_full_text(self):
+
+	def get_full_text(self, allArticles=None):
 		'''Driver script to extract data from page '''
-		allArticles = [line.rstrip() for line in open( os.getcwd() + self.storage + '/seedlist.txt')]		
+		if not allArticles:
+			allArticles = [line.rstrip() for line in open( os.getcwd() + self.storage + '/seedlist.txt')]	
+
 		jobs = []
 		random.shuffle(allArticles)
 		if len(allArticles) < self.xpages:
@@ -305,6 +330,7 @@ class scored(object):
 			self.f.write('Finished with get_all\n')
 			print 'Finished with get_all'
 			return True
+
 
 	def _use_selenium(self, page, sel, fname):
 		''' Check if to use selenium '''
@@ -347,7 +373,7 @@ class scored(object):
 			s = self._get_list(soup, page, fname)
 			if s != [] or s != None: sel.append(s)
 
-		return sel
+		return sel, useSel
 
 
 	def _remove_unwanted(self, URLlist):
@@ -587,7 +613,6 @@ class scored(object):
 
 		filter(None, seleniumList)
 		return seleniumList
-
 
 			
 	def _get_link (self, link, pubHouse):
@@ -936,7 +961,7 @@ class scored(object):
 		    job = cc.progress() # gets the current job if no progress, else iterates and makes progress
 		    if job == None:
 		        break
-		count += seedStep
+		self.count += seedStep
 		return nt
 
 
