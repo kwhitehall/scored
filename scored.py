@@ -82,6 +82,10 @@ class scored(object):
 
 
 	def _start_Nutch_server(self):
+		'''
+		Start NUTCH service
+		Returns: PID of the service
+		'''
 		ps = subprocess.Popen("ps -ef | grep NutchServer | grep -v grep", shell=True, stdout=subprocess.PIPE).communicate()[0]
 		if ps:
 			self.f.write('Nutch Server is already running \n')
@@ -100,6 +104,12 @@ class scored(object):
 
 
 	def get_journal_list(self):
+		'''
+		Writes the journal lists to a file
+		Assumes: The URL(s) passed is (are) the landing pages for the publication house and/or the discipline
+		Returns: Boolean to indicate if completed successfully
+		Outputs: A text file with all of the URLs of journals from the URL supplied
+		'''
 		if os.path.exists(os.getcwd() + self.storage  + '/journals.txt'):
 			os.remove(os.getcwd()  + self.storage + '/journals.txt')
 
@@ -171,8 +181,13 @@ class scored(object):
 
 
 	def get_issues_list(self):
-		''' get all issues '''
-
+		'''
+		Writes the issues associated with a journal URL to a file
+		Assumes: The URL(s) passed is (are) the landing pages for the landing page for a journal
+		Returns: Boolean to indicate if completed successfully
+		Outputs: A text file with all of the URLs of issues from the journal from the URL supplied
+		'''
+		
 		if os.path.exists(os.getcwd() + self.storage + '/issuelist.txt'):
 			os.remove(os.getcwd() + self.storage + '/issuelist.txt')
 
@@ -205,7 +220,12 @@ class scored(object):
 
 
 	def get_articles_list(self):
-		''' generate the journals lists from the issues list '''
+		'''
+		Writes the articles lists to a file
+		Assumes: The URL(s) passed is (are) the landing pages for the issues associated with a particular journal
+		Returns: Boolean to indicate if completed successfully
+		Outputs: A text file with all of the articles URLs from the URL supplied
+		'''
 
 		# global count 
 		# count = 0
@@ -265,7 +285,12 @@ class scored(object):
 
 
 	def _get_seeds(self):
-		'''Extract from seeds'''
+		'''
+		Writes the paper lists to a file
+		Assumes: The URL(s) passed is (are) the landing pages for the particular issue/ volume associated with a particular journal
+		Returns: 
+		Outputs: A text file with all of the paper URLs from the URL supplied
+		'''
 		print '^^^^ _get_seeds ', self.count
 		fname = os.getcwd() + self.storage + '/seedlist.txt'
 		#logic to check the how much of the file has been read
@@ -333,7 +358,12 @@ class scored(object):
 
 
 	def _use_selenium(self, page, sel, fname):
-		''' Check if to use selenium '''
+		''' 
+		Check if to use selenium 
+		Inputs:
+		Returns:
+		Outputs:
+		'''
 		
 		useSel = False
 		if sel:
