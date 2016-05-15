@@ -31,13 +31,18 @@ from flask.ext.api import FlaskAPI, status, exceptions
 from flask.ext.api.decorators import set_renderers, set_parsers
 from flask.ext.api.renderers import JSONRenderer, HTMLRenderer
 from flask.ext.api.parsers import JSONParser, BaseParser
-import time, sys, os, difflib, fileinput, re, urllib2, cookielib, json, multiprocessing, random, warnings, thread
-
+from nutch.nutch import Nutch
+from nutch.nutch import SeedClient
+from nutch.nutch import Server
+from nutch.nutch import JobClient
+from apscheduler.schedulers.background import BackgroundScheduler
+import time, sys, os, difflib, fileinput, re, urllib2, cookielib, json, multiprocessing, random, \
+       warnings, thread, subprocess, nutch
 
 app = FlaskAPI(__name__)
 
 class scored(object):
-	def __init__(self, url, num, input1=None):
+	def __init__(self, nutchLoc, url, num, input1=None):
 		
 		self.driver = webdriver.PhantomJS()
 		self.driver.set_window_size(1024, 768)
@@ -56,6 +61,8 @@ class scored(object):
 		self.f = open(self.log,'ab+')
 		self.num = num
 		self.input1 = input1
+		self.count = 0
+		self.seedStep = 25
 		self.stopwords = ['facebook', 'twitter', 'youtube', 'linkedin', 'membership', 'subscribe', 'subscription', 'blog',\
 					 'submit', 'contact', 'listserve', 'login', 'disclaim', 'editor', 'section', 'librarian', 'alert',\
 					 '#', 'email', '?', 'copyright', 'license', 'charges', 'terms', 'mailto:', 'submission', 'author',\
@@ -64,8 +71,42 @@ class scored(object):
 					 'metrics', 'highlight', 'about', 'imprint', 'peer_review', 'comment', 'pol', 'account', '.xml', '.ris',\
 					 '.bib','keyword']
 		self.extensions = ['zip', 'png', 'jpeg', 'xml', 'bib', 'rss', 'gif', 'tar', 'bzip']
+		
+		if not os.path.exists(nutchLoc+'/runtime/local') or not os.environ.has_key('NUTCH_HOME'):
+			print 'No Nutch installation supplied! \n'
+			self.f.write('No Nutch installation supplied! \n')
+			# sys.exit()
+			self.useNutch = False
+		else:
+			if not os.environ.has_key('NUTCH_HOME'):
+				os.environ['NUTCH_HOME'] = nutchLoc
+				self.nutchPID = self._start_Nutch_server()
+				# self.f.write('Started Nutch Server PID %s\n' %self.nutchPID)
+				# print 'Started Nutch Server PID %s\n' %self.nutchPID
+				self.sv = Server('http://localhost:8081')
+				self.sc = SeedClient(self.sv)
+				self.useNutch = True
 
 		warnings.filterwarnings("error")
+
+
+	def _start_Nutch_server(self):
+		'''
+		Start NUTCH service
+		Assumes:
+		Returns: PID of the service
+		Inputs:
+		'''
+		ps = subprocess.Popen("ps -ef | grep NutchServer | grep -v grep", shell=True, stdout=subprocess.PIPE).communicate()[0]
+		if ps:
+			self.f.write('Nutch Server is already running \n')
+			print 'Nutch Server is already running \n'
+			return False
+		else:
+			self.f.write('Starting Nutch server \n')
+			print 'Starting Nutch server \n'
+			nPID = subprocess.Popen([os.getenv('NUTCH_HOME')+'/runtime/local/bin/nutch','startserver']).pid
+			return nPID
 
 
 	def _tear_down(self):
@@ -74,6 +115,12 @@ class scored(object):
 
 
 	def get_journal_list(self):
+		'''
+		Writes the journal lists to a file
+		Assumes: The URL(s) passed is (are) the landing pages for the publication house and/or the discipline
+		Returns: Boolean to indicate if completed successfully
+		Outputs: A text file with all of the URLs of journals from the URL supplied
+		'''
 		if os.path.exists(os.getcwd() + self.storage  + '/journals.txt'):
 			os.remove(os.getcwd()  + self.storage + '/journals.txt')
 
@@ -145,7 +192,12 @@ class scored(object):
 
 
 	def get_issues_list(self):
-		''' get all issues '''
+		'''
+		Writes the issues associated with a journal URL to a file
+		Assumes: The URL(s) passed is (are) the landing pages for the landing page for a journal
+		Returns: Boolean to indicate if completed successfully
+		Outputs: A text file with all of the URLs of issues from the journal from the URL supplied
+		'''
 		
 		if os.path.exists(os.getcwd() + self.storage + '/issuelist.txt'):
 			os.remove(os.getcwd() + self.storage + '/issuelist.txt')
@@ -167,23 +219,32 @@ class scored(object):
 			journals = [line.rstrip() for line in open(jfname)]
 			random.shuffle(journals)
 		except: 
-			self.f.write('No journals.txt\n')
+			self.f.write('\nNo journals.txt\n')
 			sys.exit()
 		
 		for page in journals:
-			sel = self._use_selenium(page, sel, fname)
-		self.f.write('Finished with get_issues_list\n')
+			sel,_ = self._use_selenium(page, sel, fname)
+		self.f.write('\nFinished with get_issues_list\n')
 		print 'Finished with get_issues_list'
 		return True
 
+
 	def get_articles_list(self):
-		''' generate the journals lists from the issues list '''
-		
+		'''
+		Writes the articles lists to a file
+		Assumes: The URL(s) passed is (are) the landing pages for the issues associated with a particular journal
+		Returns: Boolean to indicate if completed successfully
+		Outputs: A text file with all of the articles URLs from the URL supplied
+		'''
+		ccList = []
+		continueServer = True
+		current = 0
+
 		if os.path.exists(os.getcwd() + self.storage + '/seedlist.txt'):
 			os.remove(os.getcwd() + self.storage + '/seedlist.txt')
 
 		if not os.path.exists(os.getcwd() + self.storage + '/issuelist.txt'):
-			self.f.write('No issuelist available! \n')
+			self.f.write('\nNo issuelist available! \n')
 			print 'No issuelist available! \n'
 			sys.exit(1)
 
@@ -194,27 +255,81 @@ class scored(object):
 		
 		try:
 			fissues = [line.rstrip() for line in open(iname)]
-			print len(fissues)
 			issues = self._remove_unwanted(fissues)
-			print 'issuse '
 			random.shuffle(issues)
 		except: 
 			self.f.write('No issuelist.txt\n')
 			sys.exit()
 
-		print len(issues)
+		self.count = self.seedStep
 
 		for page in issues:
-			sel = self._use_selenium(page, sel, fname)
+			sel, useSel = self._use_selenium(page, sel, fname)
+			if self.useNutch == True:
+				currSeeds = [line.rstrip() for line in open(fname)]
+				if len(currSeeds) > self.count and len(currSeeds) - self.count >= self.seedStep:
+					seeds = currSeeds[self.count:(self.count+self.seedStep)]
+					self.count += self.seedStep
+					random.shuffle(seeds)
+
+					if useSel == True:
+						nt = Nutch('default')#('selenium')
+						config = 'default'#'selenium'
+					else:
+						nt = Nutch('default')
+						config = 'default'
+					
+					sd = self.sc.create('scored', seeds)
+					jc = JobClient(self.sv, 'scored', config)
+					cc = nt.Crawl(sd, self.sc, jc)
+					ccList.append(cc)
+			else:
+				for page in issues:
+					sel = self._use_selenium(page, sel, fname)
+
+		currSeeds = [line.rstrip() for line in open(fname)]
+		if len(currSeeds) > self.count:
+			seeds = currSeeds[self.count:]
+			random.shuffle(seeds)
+			if useSel == True:
+				nt = Nutch('default')#('selenium')
+				config = 'default' #'selenium'
+			else:
+				nt = Nutch('default')
+				config = 'default'
 			
+			sd = self.sc.create('scored', seeds)
+			jc = JobClient(self.sv, 'scored', config)
+			cc = nt.Crawl(sd, self.sc, jc)
+			ccList.append(cc)
+
+		# stop Nutch server
+		while len(ccList) != 0:
+			for i in ccList:
+				while True:
+				    job = i.progress() # gets the current job if no progress, else iterates and makes progress
+				    if job == None:
+				    	ccList.remove(i)
+				        break
+
+		nt.stopServer
 		self.f.write('Finished with get_articles_list\n')
 		print 'Finished with get_articles_list'
-		return True
+		self._tear_down()
+		return True	
 
 
-	def get_full_text(self):
-		'''Driver script to extract data from page '''
-		allArticles = [line.rstrip() for line in open( os.getcwd() + self.storage + '/seedlist.txt')]		
+	def get_full_text(self, allArticles=None):
+		'''
+		Driver script to extract data from page 
+		Assumes:
+		Inputs: allArticles - a list of URLs 
+		Returns: Boolean to indicate if completed successfully
+		Outputs: JSON files from the URLs
+		'''
+		if not allArticles:
+			allArticles = [line.rstrip() for line in open( os.getcwd() + self.storage + '/seedlist.txt')]	
+
 		jobs = []
 		random.shuffle(allArticles)
 		if len(allArticles) < self.xpages:
@@ -250,8 +365,17 @@ class scored(object):
 			print 'Finished with get_all'
 			return True
 
+
 	def _use_selenium(self, page, sel, fname):
-		''' Check if to use selenium '''
+		''' 
+		Check if to use selenium 
+		Inputs: page - 
+				sel - 
+				fname - 
+		Returns:
+		Outputs: sel - a list of URL to use with selenium
+		         useSel - boolean to indicate whether to use selenium or not
+		'''
 		
 		useSel = False
 		if sel:
@@ -264,11 +388,11 @@ class scored(object):
 				curr = self._find_common_patterns(page, i)
 				if len(curr[0]) == len(curr[1]):
 					print 'using selenium'
-					self.f.write('using selenium to access %s\n' %page)
+					self.f.write('\nusing selenium to access %s\n' %page)
 					useSel = True
 					soup = self._get_page_soup(page, selenium=True)
 					if not soup:
-						self.f.write('soup not returned \n')
+						self.f.write('\nsoup not returned \n')
 						#break #return False
 						return #False
 					s = self._get_list(soup, page, fname)
@@ -277,7 +401,7 @@ class scored(object):
 			if useSel == False:
 				soup = self._get_page_soup(page)
 				if not soup:
-					self.f.write('soup not returned \n')
+					self.f.write('\nsoup not returned \n')
 					# break #return False
 					return #False
 				s = self._get_list(soup, page, fname)
@@ -285,13 +409,13 @@ class scored(object):
 		else:
 			soup = self._get_page_soup(page)
 			if not soup:
-				self.f.write('soup not returned \n')
+				self.f.write('\nsoup not returned \n')
 				# break #return False
 				return #False
 			s = self._get_list(soup, page, fname)
 			if s != [] or s != None: sel.append(s)
 
-		return sel
+		return sel, useSel
 
 
 	def _remove_unwanted(self, URLlist):
@@ -328,7 +452,7 @@ class scored(object):
 		''' reach html using urllib2 & cookies or selenium & PhantomJS'''
 
 		print 'in _get_html ', link, selenium
-		self.f.write('in _get_html with %s and selenium= %s' %(link, selenium))
+		self.f.write('\nin _get_html with %s and selenium= %s' %(link, selenium))
 
 		if not selenium:
 			try:
@@ -339,7 +463,7 @@ class scored(object):
 				return response.read()	
 			except Exception as e:
 				print 'unable to reach link'
-				self.f.write('unable to reach %s with urllib2\n %s' %(link,e))
+				self.f.write('\nunable to reach %s with urllib2\n %s' %(link,e))
 				return False
 		else:
 			try:
@@ -352,7 +476,7 @@ class scored(object):
 			
 			except Exception as e:
 				print 'unable to reach link with selenium'
-				self.f.write('unable to reach %s with selenium\n %s' %(link,e))
+				self.f.write('\nunable to reach %s with selenium\n %s' %(link,e))
 				return False
 
 
@@ -531,7 +655,6 @@ class scored(object):
 
 		filter(None, seleniumList)
 		return seleniumList
-
 
 			
 	def _get_link (self, link, pubHouse):
@@ -940,13 +1063,16 @@ def Which_data_for_this_problem():
 	#return [note_repr(idx) for idx in sorted(notes.keys())]
 
 if __name__ == '__main__':
+	nutchLoc = ''
 	if(len(sys.argv) >= 2):
 		if(sys.argv[1] == 'flask'):
 			app.run(debug=True)
 
 	else:
-		URLlink =  'http://www.adv-geosci.net/38/21/2014/adgeo-38-21-2014.pdf'
-		journals = scored(URLlink, -1) 
+		nutchLoc = '/nutch'
+		URLlink =  'http://www.egu.eu/publications/open-access-journals'
+		# URLlink =  'http://www.adv-geosci.net/38/21/2014/adgeo-38-21-2014.pdf'
+		journals = scored(nutchLoc, URLlink, -1) 
 		print 'Extracting Data from Journals...'
 		journals.get_journal_list() 
 		journals.get_issues_list()
