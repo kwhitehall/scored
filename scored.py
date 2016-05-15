@@ -55,6 +55,7 @@ class scored(object):
 		self.num = num
 		self.input1 = input1
 		self.count = 0
+		self.seedStep = 25
 		self.stopwords = ['facebook', 'twitter', 'youtube', 'linkedin', 'membership', 'subscribe', 'subscription', 'blog',\
 					 'submit', 'contact', 'listserve', 'login', 'disclaim', 'editor', 'section', 'librarian', 'alert',\
 					 '#', 'email', '?', 'copyright', 'license', 'charges', 'terms', 'mailto:', 'submission', 'author',\
@@ -84,7 +85,9 @@ class scored(object):
 	def _start_Nutch_server(self):
 		'''
 		Start NUTCH service
+		Assumes:
 		Returns: PID of the service
+		Inputs:
 		'''
 		ps = subprocess.Popen("ps -ef | grep NutchServer | grep -v grep", shell=True, stdout=subprocess.PIPE).communicate()[0]
 		if ps:
@@ -229,8 +232,10 @@ class scored(object):
 
 		# global count 
 		# count = 0
+		ccList = []
 		continueServer = True
-		
+		current = 0
+
 		if os.path.exists(os.getcwd() + self.storage + '/seedlist.txt'):
 			os.remove(os.getcwd() + self.storage + '/seedlist.txt')
 
@@ -254,22 +259,85 @@ class scored(object):
 			self.f.write('No issuelist.txt\n')
 			sys.exit()
 
-		if self.useNutch == True:
-			#timer for nutch job to check every 10mins
-			scheduler = BackgroundScheduler()
-			# scheduler.add_job(self._get_seeds, 'interval', seconds=36000)
-			scheduler.start()
+		# if self.useNutch == True:
+		# 	print 'useNutch == True'
+		# 	#timer for nutch job to check every 10mins
+		# 	scheduler = BackgroundScheduler()
+		# 	# scheduler.add_job(self._get_seeds, 'interval', seconds=36000)
+		# 	scheduler.start()
+		# current = self.seedStep
+		self.count = self.seedStep
 
 		for page in issues:
 			sel, useSel = self._use_selenium(page, sel, fname)
 			print '** ', useSel, self.useNutch
 			if self.useNutch == True:
-				if useSel == True:
-					# use nutch config for selenium
-					scheduler.add_job(self._get_seeds, 'interval', seconds=3)#6000)
-				else:
-					scheduler.add_job(self._get_seeds, 'interval', seconds=3) #6000)
-				
+				currSeeds = [line.rstrip() for line in open(fname)]
+				# if len(currSeeds) <= self.count:
+				# 	seeds = currSeeds[(len(currSeeds)/self.seedStep)*self.seedStep + (len(currSeeds)%self.seedStep):]
+				# else:
+				# 	seeds = currSeeds[self.count:self.count+self.seedStep]
+				if len(currSeeds) > self.count and len(currSeeds) - self.count >= self.seedStep:
+					seeds = currSeeds[self.count:(self.count+self.seedStep)]
+					self.count += self.seedStep
+					random.shuffle(seeds)
+				# random.shuffle(seeds)
+				# self.count += self.seedStep
+					if useSel == True:
+						nt = Nutch('default')#('selenium')
+						config = 'default'#'selenium'
+					else:
+						nt = Nutch('default')
+						config = 'default'
+					print '========================= end config ===================='
+
+					sd = self.sc.create('scored', seeds)
+					jc = JobClient(self.sv, 'scored', config)
+					cc = nt.Crawl(sd, self.sc, jc)
+					ccList.append(cc)
+			else:
+
+				# while True:
+				#     job = cc.progress() # gets the current job if no progress, else iterates and makes progress
+				#     if job == None:
+				#         break
+				# currCC = self._get_seeds
+				# if useSel == True:
+				# 	# use nutch config for selenium
+				# 	scheduler.add_job(self._get_seeds, 'interval', seconds=3)#6000)
+				# else:
+				# 	scheduler.add_job(self._get_seeds, 'interval', seconds=3) #6000)
+			
+
+		print ccList
+		# ccListCopy = ccList
+		currSeeds = [line.rstrip() for line in open(fname)]
+		if len(currSeeds) > self.count:
+			seeds = currSeeds[self.count:]
+			random.shuffle(seeds)
+			if useSel == True:
+				nt = Nutch('default')#('selenium')
+				config = 'default' #'selenium'
+			else:
+				nt = Nutch('default')
+				config = 'default'
+			print '========================= end config ===================='
+
+			sd = self.sc.create('scored', seeds)
+			jc = JobClient(self.sv, 'scored', config)
+			cc = nt.Crawl(sd, self.sc, jc)
+			ccList.append(cc)
+
+		# stop Nutch server
+		while len(ccList) != 0:
+			for i in ccList:
+				while True:
+				    job = i.progress() # gets the current job if no progress, else iterates and makes progress
+				    if job == None:
+				    	ccList.remove(i)
+				        break
+
+		nt.stopServer
 		self.f.write('Finished with get_articles_list\n')
 		print 'Finished with get_articles_list'
 		self._tear_down()
@@ -294,30 +362,40 @@ class scored(object):
 		print '^^^^ _get_seeds ', self.count
 		fname = os.getcwd() + self.storage + '/seedlist.txt'
 		#logic to check the how much of the file has been read
-		seedStep = 2 #100
+		seedStep = 5 #100
 		currSeeds = [line.rstrip() for line in open(fname)]
 		currlen = len(currSeeds)
-		print 'len currSeeds ', len(currSeeds)
-		sys.exit()
+		print 'len currSeeds ', len(currSeeds),' ', currlen, ' ', self.count 
+		# sys.exit()
 
-		while self.count < currlen:
-			print self.count
-			if currlen <= self.count:
-				print 'in if ', (currlen/seedStep)*seedStep + (currlen%seedStep)
-				seeds = currSeeds[(currlen/seedStep)*seedStep + (currlen%seedStep):]
-				# random.shuffle(seeds)
-				# nt = self._send_seeds(self, seeds)
-			else:
-				seeds = currSeeds[self.count:self.count+seedStep]
-				print 'in else ', self.count+seedStep
-			random.shuffle(seeds)
-			self.count += seedStep
-			nt = self._send_seeds(self, seeds)
-		nt.stopServer		
+		# while self.count <= currlen:
+		print ('*'*40)
+		print self.count
+		if currlen <= self.count:
+			# print 'in if ', (currlen/seedStep)*seedStep + (currlen%seedStep)
+			seeds = currSeeds[(currlen/seedStep)*seedStep + (currlen%seedStep):]
+			print 'in if ',seeds
+			# random.shuffle(seeds)
+			# nt = self.ds(self, seeds)
+		else:
+			seeds = currSeeds[self.count:self.count+seedStep]
+			print 'in else ', seeds #self.count+seedStep
+		random.shuffle(seeds)
+		self.count += seedStep
+		# nt = self._send_seeds(seeds)
+		# print '^^^^^^^^^^^^^ ', nt
+		# nt.stopServer	
+		return self._send_seeds(seeds)	
 
 
 	def get_full_text(self, allArticles=None):
-		'''Driver script to extract data from page '''
+		'''
+		Driver script to extract data from page 
+		Assumes:
+		Inputs: allArticles - a list of URLs 
+		Returns: Boolean to indicate if completed successfully
+		Outputs: JSON files from the URLs
+		'''
 		if not allArticles:
 			allArticles = [line.rstrip() for line in open( os.getcwd() + self.storage + '/seedlist.txt')]	
 
@@ -360,9 +438,12 @@ class scored(object):
 	def _use_selenium(self, page, sel, fname):
 		''' 
 		Check if to use selenium 
-		Inputs:
+		Inputs: page - 
+				sel - 
+				fname - 
 		Returns:
-		Outputs:
+		Outputs: sel - a list of URL to use with selenium
+		         useSel - boolean to indicate whether to use selenium or not
 		'''
 		
 		useSel = False
@@ -376,11 +457,11 @@ class scored(object):
 				curr = self._find_common_patterns(page, i)
 				if len(curr[0]) == len(curr[1]):
 					print 'using selenium'
-					self.f.write('using selenium to access %s\n' %page)
+					self.f.write('\nusing selenium to access %s\n' %page)
 					useSel = True
 					soup = self._get_page_soup(page, selenium=True)
 					if not soup:
-						self.f.write('soup not returned \n')
+						self.f.write('\nsoup not returned \n')
 						#break #return False
 						return #False
 					s = self._get_list(soup, page, fname)
@@ -389,7 +470,7 @@ class scored(object):
 			if useSel == False:
 				soup = self._get_page_soup(page)
 				if not soup:
-					self.f.write('soup not returned \n')
+					self.f.write('\nsoup not returned \n')
 					# break #return False
 					return #False
 				s = self._get_list(soup, page, fname)
@@ -397,7 +478,7 @@ class scored(object):
 		else:
 			soup = self._get_page_soup(page)
 			if not soup:
-				self.f.write('soup not returned \n')
+				self.f.write('\nsoup not returned \n')
 				# break #return False
 				return #False
 			s = self._get_list(soup, page, fname)
@@ -440,7 +521,7 @@ class scored(object):
 		''' reach html using urllib2 & cookies or selenium & PhantomJS'''
 
 		print 'in _get_html ', link, selenium
-		self.f.write('in _get_html with %s and selenium= %s' %(link, selenium))
+		self.f.write('\nin _get_html with %s and selenium= %s' %(link, selenium))
 
 		if not selenium:
 			try:
@@ -451,7 +532,7 @@ class scored(object):
 				return response.read()	
 			except Exception as e:
 				print 'unable to reach link'
-				self.f.write('unable to reach %s with urllib2\n %s' %(link,e))
+				self.f.write('\nunable to reach %s with urllib2\n %s' %(link,e))
 				return False
 		else:
 			try:
@@ -464,7 +545,7 @@ class scored(object):
 			
 			except Exception as e:
 				print 'unable to reach link with selenium'
-				self.f.write('unable to reach %s with selenium\n %s' %(link,e))
+				self.f.write('\nunable to reach %s with selenium\n %s' %(link,e))
 				return False
 
 
@@ -965,14 +1046,16 @@ class scored(object):
 		'''
 		Open file, while more urls to check if filelen 1-100, grab 100 and randomize, and send to nutch server.
 		'''
+		print '-------------------------- IN HERE -------------------', config
+
 		if config:
 			nt = Nutch(config)
 		else:
 			nt = Nutch('default')
 			config = 'default'
-
+		print '========================= end config ===================='
 		# count = 0
-		# seedStep = 100
+		# seedStep = 5
 		# currSeeds = [line.rstrip() for line in open(seedlist)]
 		# currlen = len(currSeeds)
 
@@ -984,15 +1067,18 @@ class scored(object):
 		# 	else:
 		# 		seeds = currSeeds[count:count+seedStep]
 		# 		random.shuffle(seeds)
-		sd = self.sc.create('scored', seeds)
-		jc = JobClient(self.sv, 'scored', config)
+		sd = self.sc.create('scored', seedlist)
+		print('^'*60)
+		print 'CONFIG GOOD'
+		jc = JobClient(self.sv, 'scoredTEST', config)
 		cc = nt.Crawl(sd, self.sc, jc)
 		while True:
 		    job = cc.progress() # gets the current job if no progress, else iterates and makes progress
 		    if job == None:
 		        break
-		self.count += seedStep
-		return nt
+		# self.count += seedStep
+		# return nt
+		return cc
 
 
 # class crawler(object):
@@ -1057,7 +1143,7 @@ class scored(object):
 	# 			count += seedStep
 
 if __name__ == '__main__':
-	nutchLoc = '/Users/kwhitehall/Documents/apache-nutch-1.11'
+	nutchLoc = '/Users/kwhitehall/Documents/nutch' #apache-nutch-1.11'
 	# seeds = '/Users/kwhitehall/Documents/githubRepos/scored/www_egu_eu/seedlist.txt'
 	URLlink =  'http://www.egu.eu/publications/open-access-journals'
 	# nutchc = crawler(nutchLoc)
